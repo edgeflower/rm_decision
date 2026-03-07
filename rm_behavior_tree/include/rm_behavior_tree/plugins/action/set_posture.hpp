@@ -18,8 +18,8 @@ public:
     {
         return {
             BT::InputPort<int>("posture", "要切换的机器人姿态"),
-            BT::InputPort<bool>("override", false, "是否强制覆盖当前状态"),
-            BT::InputPort<std::string>("service_name", "/set_posture", "服务名称")
+            BT::InputPort<bool>("override", false, "是否强制覆盖当前状态")
+            //BT::InputPort<std::string>("service_name", "/set_posture", "服务名称")
         };
     }
 
@@ -35,9 +35,9 @@ public:
 private:
     enum Posture
     {
-        POSTURE_ATTACK = 1,
-        POSTURE_DEFENSE = 2,
-        POSTURE_MOVE = 3,
+        POSTURE_ATTACK = 1,   // 攻击姿态
+        POSTURE_DEFENSE = 2,  // 防御姿态
+        POSTURE_MOVE = 3,     // 移动姿态
     };
     // 如果需要 15 秒保持逻辑，可以记录时间
     rclcpp::Time start_time_;

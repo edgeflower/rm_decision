@@ -7,12 +7,14 @@ SetPosture::SetPosture(
     const std::string & name, const BT::NodeConfig & conf, const BT::RosNodeParams & params)
 : RosServiceNode<rm_decision_interfaces::srv::SetSentryPosture>(name, conf, params)
 {
+    /*
     // 1. 获取服务名（默认为 /set_posture）
     std::string service_name;
     if (!getInput<std::string>("service_name", service_name)) {
         service_name = "set_posture";
     }
-
+    */
+    std::string service_name = "set_posture"; // 固定服务名
     // 2. 这里的 node_ 是基类 RosServiceNode 提供的
     RCLCPP_INFO(node_->get_logger(), "[%s] 正在连接服务: %s", name.c_str(), service_name.c_str());
 

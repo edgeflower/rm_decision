@@ -11,6 +11,8 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 # find dependencies
 find_package(ament_cmake_auto REQUIRED)
+find_package(spdlog REQUIRED)
+find_package(fmt REQUIRED)
 ament_auto_find_build_dependencies()
 
 
@@ -24,6 +26,8 @@ set(PACKAGE_INCLUDE_DEPENDS
   behaviortree_cpp
   behaviortree_ros2
   )
+
+
 
 # 定义宏函数 add_target_dependencies
 function(add_target_dependencies target)
@@ -39,7 +43,10 @@ ament_auto_add_executable(rm_behavior_tree
 ament_auto_add_executable(rm_behavior_tree_me 
 	src/rm_behavior_tree_me.cpp
 )
-
+target_link_libraries(rm_behavior_tree_me
+  spdlog::spdlog
+  fmt::fmt  # <--- 重点是添加这一行
+)
 # action
 ament_auto_add_library(sub_all_robot_location SHARED
   plugins/action/sub_all_robot_location.cpp)
@@ -106,9 +113,9 @@ ament_auto_add_library(sub_decision_num SHARED
   plugins/action/sub_decision_num.cpp)
 add_target_dependencies(sub_decision_num)
 
-ament_auto_add_library(pick_best_armor SHARED
-  plugins/action/pick_best_armor.cpp)
-add_target_dependencies(pick_best_armor)
+ament_auto_add_library(enemy_position_filter SHARED
+  plugins/action/enemy_position_filter.cpp)
+add_target_dependencies(enemy_position_filter)
 
 ament_auto_add_library(armor_to_goal SHARED
   plugins/action/armor_to_goal.cpp)

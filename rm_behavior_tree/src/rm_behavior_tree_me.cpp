@@ -1,34 +1,52 @@
 #include "rm_behavior_tree/rm_behavior_tree.hpp"
 #include "rm_behavior_tree/BehaviorTreeManager.hpp"
 #include <memory>
+#include <rclcpp/rclcpp.hpp>
 
 int main(int argc, char ** argv)
 {
-    // 初始化ROS2系统
     rclcpp::init(argc, argv);
 
-    // 创建自定义行为树节点（继承自rclcpp::Node）
+    // 1. 创建 ROS2 节点
+    // 假设 BehaviorTreeNode 内部构造了 BT::Tree
     auto bt_node = std::make_shared<rm_behavior_tree::BehaviorTreeNode>();
 
-    // 创建行为树管理器
+    // 2. 创建管理器
     BehaviorTreeManager bt_manager;
-    // 通过 bt_node 的 getter 获取内部加载好的行为树，并添加到管理器中
-    bt_manager.addTree(&bt_node->getTree());
 
-    // 启动行为树管理器，设置每100毫秒tick一次所有行为树
-    bt_manager.start(1000);
+    // --- 重要修正：内存安全 ---
+    // 如果 getTree() 返回的是 BT::Tree& 或 BT::Tree*，
+    // 为了适配 shared_ptr 管理器，我们需要确保生命周期。
+    // 推荐做法：修改 getTree() 返回 std::shared_ptr<BT::Tree>
+    auto tree_ptr = bt_node->getTreePtr(); 
+    
+    if (tree_ptr) {
+        // 给这棵树起个名字，方便监控和日志记录
+        bt_manager.addTree("MainTaskTree", tree_ptr);
+    } else {
+        RCLCPP_ERROR(bt_node->get_logger(), "Failed to get Behavior Tree pointer!");
+        return -1;
+    }
 
-    // 创建多线程执行器，处理ROS2的各类回调（定时器、订阅、服务等）
+    // 3. 启动管理器
+    // 注意：1000ms (1秒) 对机器人控制来说可能太慢了，通常设为 50-100ms
+    bt_manager.start(100); 
+
+    // 4. 设置多线程执行器
+    // ROS2 的回调（如传感器数据订阅）在这些线程中运行
     rclcpp::executors::MultiThreadedExecutor executor;
     executor.add_node(bt_node);
 
-    // 进入ROS2事件循环
+    RCLCPP_INFO(bt_node->get_logger(), "System started. BT Manager and ROS2 Executor are running.");
+
+    // 5. 进入循环
+    // 这会阻塞主线程，处理所有 ROS2 相关逻辑
     executor.spin();
 
-    // 当ROS2退出时，停止行为树管理器的tick线程并清理资源
+    // 6. 清理退出
+    RCLCPP_INFO(bt_node->get_logger(), "Shutting down...");
     bt_manager.stop();
     rclcpp::shutdown();
+    
     return 0;
 }
-
-

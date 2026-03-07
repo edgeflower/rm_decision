@@ -4,9 +4,12 @@
   <BehaviorTree ID="BehaviorTree">
     <RateController hz="1">
       <Sequence>
+        <SubRobotPosture topic_name="sentry_posture_status"/>
         <RobotControl stop_gimbal_scan="False"
                       chassis_spin_vel="0.0"
-                      gimbal_big_yaw_vel="30"/>
+                      gimbal_big_yaw_vel="2.7"/>
+        <SetPosture robot_posture_status="{robot_posture_status}"
+                    override="False"/>
       </Sequence>
     </RateController>
   </BehaviorTree>
@@ -24,6 +27,18 @@
                   default="False"/>
       <input_port name="gimbal_big_yaw_vel"
                   default="1.0"/>
+    </Action>
+    <Action ID="SetPosture"
+            editable="true">
+      <input_port name="robot_posture_status"
+                  default="{robot_posture_status}"/>
+      <input_port name="override"
+                  default="False"/>
+    </Action>
+    <Action ID="SubRobotPosture"
+            editable="true">
+      <input_port name="topic_name"
+                  default="robot_posture_status"/>
     </Action>
   </TreeNodesModel>
 

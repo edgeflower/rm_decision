@@ -37,11 +37,12 @@ public:
         registerPlugins();
 
         // 通过行为树工厂从XML文件创建行为树
-        tree = factory->createTreeFromFile(bt_xml_path);
+        auto instance = factory->createTreeFromFile(bt_xml_path);
+        tree_ptr = std::make_shared<BT::Tree>(std::move(instance));
 
         // 启动Groot2调试发布器，用于实时监控行为树状态，指定端口为1667
         const unsigned port = 1667;
-        publisher = std::make_shared<BT::Groot2Publisher>(tree, port);
+        publisher = std::make_shared<BT::Groot2Publisher>(*tree_ptr, port);
 
         //【如果使用集中管理器统一tick，则不需要内部定时器】
 //        timer_ = this->create_wall_timer(
@@ -50,8 +51,13 @@ public:
 //        );
     }
 
-    // 提供一个public接口，返回内部行为树对象引用
-    BT::Tree& getTree() { return tree; }
+    /*
+    // 兼容旧接口（如果其他地方用到了引用）
+    BT::Tree& getTree() { return *tree_ptr; }
+    */
+
+    // 提供一个public接口，返回内部行为树对象指针
+    std::shared_ptr<BT::Tree> getTreePtr() { return tree_ptr; }
 
 private:
     // 注册所有插件
@@ -70,6 +76,8 @@ private:
         BT::RosNodeParams params_set_posture;
         params_set_posture.nh = std::make_shared<rclcpp::Node>("set_posture");
         params_set_posture.default_port_value = "set_posture";
+
+        
 
 
         const std::vector<std::string> msg_update_plugins_libs = {
@@ -96,7 +104,7 @@ private:
             "get_robot_location",
             "move_around",
             "print_message",
-            "pick_best_armor",
+            "enemy_position_filter",
             "armor_to_goal",
             "set_posture",
         };
@@ -127,7 +135,7 @@ private:
     std::shared_ptr<BT::BehaviorTreeFactory> factory;           // 行为树工厂
     std::shared_ptr<BT::Groot2Publisher> publisher;             // Groot2调试发布器
     // std::shared_ptr<rclcpp::TimerBase> timer_;                // 定时器（此处不再使用）
-    BT::Tree tree;                                            // 行为树对象
+    std::shared_ptr<BT::Tree> tree_ptr;                         // 行为树对象指针
 };
 
 } // namespace rm_behavior_tree

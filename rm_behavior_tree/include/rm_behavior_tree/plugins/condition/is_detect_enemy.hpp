@@ -2,6 +2,7 @@
 #define RM_BEHAVIOR_TREE__PLUGINS__CONDITION__IS_DETECTED_ENENMY_HPP_
 
 #include <armor_interfaces/msg/armors.hpp>
+#include <armor_interfaces/msg/target.hpp>
 #include "behaviortree_cpp/condition_node.h"
 
 namespace rm_behavior_tree{
@@ -17,7 +18,7 @@ public:
     
     static BT::PortsList providedPorts(){
         return {
-            BT::InputPort<armor_interfaces::msg::Armors>("message")};
+            BT::InputPort<armor_interfaces::msg::Target>("message")};
     }
 };
 

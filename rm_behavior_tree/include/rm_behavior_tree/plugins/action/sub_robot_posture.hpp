@@ -25,9 +25,9 @@ public:
 private:
 	enum Posture
 	{
-		POSTURE_ATTACK = 1,    // 
-		POSTURE_DEFFENSE = 2,  //
-		POSTURE_MOVE = 3,	   //
+		POSTURE_ATTACK = 1,    // 进攻
+		POSTURE_DEFFENSE = 2,  // 防御
+		POSTURE_MOVE = 3,	   // 移动
 	};
 
 };

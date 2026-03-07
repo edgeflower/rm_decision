@@ -1,0 +1,84 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<root BTCPP_format="4">
+  <BehaviorTree ID="attack_robot">
+    <ReactiveSequence>
+      <SetPosture posture="3"
+                  override="False"/>
+      <SubArmors topic_name="target_tracking"
+                 armors="{armors}"/>
+      <RobotControl stop_gimbal_scan="True"
+                    chassis_spin_vel="0.0"
+                    gimbal_big_yaw_vel="30.0"/>
+      <WhileDoElse name="Evade when attacked">
+        <ReactiveSequence>
+          <IsDetectEnemy message="{armors}"/>
+          <EnemyPositionFilter enemy_position="{armors}"
+                               alpha="0.3"
+                               max_distance="10.0"
+                               history_size="5"
+                               filtered_position="{filtered_position}"/>
+        </ReactiveSequence>
+        <AsyncSequence>
+          <RobotControl stop_gimbal_scan="True"
+                        chassis_spin_vel="0.5"
+                        gimbal_big_yaw_vel="0.0"/>
+          <ArmorToGoal armor_message="{filtered_position}"/>
+        </AsyncSequence>
+        <RobotControl stop_gimbal_scan="True"
+                      chassis_spin_vel="0.0"
+                      gimbal_big_yaw_vel="30.0"/>
+      </WhileDoElse>
+    </ReactiveSequence>
+  </BehaviorTree>
+
+  <!-- Description of Node Models (used by Groot) -->
+  <TreeNodesModel>
+    <Action ID="ArmorToGoal"
+            editable="true">
+      <input_port name="armor_message"
+                  default="{armor_message}"/>
+    </Action>
+    <Action ID="EnemyPositionFilter"
+            editable="true">
+      <input_port name="enemy_position"
+                  default="{armors}"/>
+      <input_port name="alpha"
+                  default="0.3"/>
+      <input_port name="max_distance"
+                  default="10.0"/>
+      <input_port name="history_size"
+                  default="5"/>
+      <output_port name="filtered_position"
+                   default="{filtered_position}"/>
+    </Action>
+    <Action ID="IsDetectEnemy"
+            editable="true">
+      <input_port name="message"
+                  default="{armors}"/>
+    </Action>
+    <Action ID="RobotControl"
+            editable="true">
+      <input_port name="stop_gimbal_scan"
+                  default="True"/>
+      <input_port name="chassis_spin_vel"
+                  default="False"/>
+      <input_port name="gimbal_big_yaw_vel"
+                  default="1.0"/>
+    </Action>
+    <Action ID="SetPosture"
+            editable="true">
+      <input_port name="posture"
+                  default="{robot_posture_status}"/>
+      <input_port name="override"
+                  default="False"/>
+    </Action>
+    <Action ID="SubArmors"
+            editable="true">
+      <input_port name="topic_name"
+                  default="/detector/armors"/>
+      <output_port name="armors"
+                   default="{armors}"/>
+    </Action>
+  </TreeNodesModel>
+
+</root>

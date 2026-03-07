@@ -19,8 +19,8 @@ def generate_launch_description():
     
     style_cmd = DeclareLaunchArgument(
             'style',
-            default_value="map1",
-            description="选取哪一个进攻防御方式   test0	test test2	rmul2025_01 test3  "
+            default_value="attack_robot",
+            description="选取哪一个进攻防御方式  map1  test0	test test2	rmul2025_01 test3  "
         )
 
     use_sim_time_cmd = DeclareLaunchArgument(

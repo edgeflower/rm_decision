@@ -1,23 +1,15 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <root BTCPP_format="4">
-  <BehaviorTree ID="rmul2025_01">
+  <BehaviorTree ID="complete_test">
     <ReactiveSequence>
-      <SubAllRobotHP topic_name="all_robot_hp"
-                     robot_hp="{robot_hp}"/>
       <SubArmors topic_name="target_tracking"
                  armors="{armors}"/>
-      <SubGameStatus topic_name="game_status"
-                     game_status="{game_status}"/>
       <SubRobotStatus topic_name="robot_status"
                       robot_status="{robot_status}"/>
       <SubRobotPosture topic_name="sentry_posture_status"/>
       <SetPosture posture="3"
                   override="False"/>
       <WhileDoElse>
-        <IsGameTime message="{game_status}"
-                    game_progress="4"
-                    lower_remain_time="0"
-                    higher_remain_time="300"/>
         <RobotControl stop_gimbal_scan="True"
                       chassis_spin_vel="0.5"
                       gimbal_big_yaw_vel="30.0"
@@ -41,12 +33,7 @@
             </AsyncSequence>
           </WhileDoElse>
           <WhileDoElse>
-            <Sequence>
-              <IsDetectEnemy message="{armors}"/>
-              <IsStatusOK message="{robot_status}"
-                          hp_threshold="400"
-                          heat_threshold="350"/>
-            </Sequence>
+            <IsDetectEnemy message="{armors}"/>
             <WhileDoElse name="Evade when attacked">
               <IsAttacked message="{robot_status}"/>
               <AsyncSequence>
@@ -118,17 +105,6 @@
       <input_port name="message"
                   default="{armors}"/>
     </Action>
-    <Action ID="IsGameTime"
-            editable="true">
-      <input_port name="message"
-                  default="{game_status}"/>
-      <input_port name="game_progress"
-                  default="4"/>
-      <input_port name="lower_remain_time"
-                  default="0"/>
-      <input_port name="higher_remain_time"
-                  default="300"/>
-    </Action>
     <Action ID="IsStatusOK"
             editable="true">
       <input_port name="message"
@@ -173,26 +149,12 @@
       <input_port name="override"
                   default="False"/>
     </Action>
-    <Action ID="SubAllRobotHP"
-            editable="true">
-      <input_port name="topic_name"
-                  default="robot_hp"/>
-      <output_port name="robot_hp"
-                   default="{robot_hp}"/>
-    </Action>
     <Action ID="SubArmors"
             editable="true">
       <input_port name="topic_name"
                   default="/detector/armors"/>
       <output_port name="armors"
                    default="{armors}"/>
-    </Action>
-    <Action ID="SubGameStatus"
-            editable="true">
-      <input_port name="topic_name"
-                  default="game_status"/>
-      <output_port name="game_status"
-                   default="{game_status}"/>
     </Action>
     <Action ID="SubRobotPosture"
             editable="true">
