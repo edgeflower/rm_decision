@@ -13,6 +13,7 @@
 #include <rclcpp/node.hpp>
 #include <nav_msgs/msg/odometry.hpp>
 #include <armor_interfaces/msg/target.hpp>
+#include <rm_decision_interfaces/msg/target.hpp>
 namespace rm_behavior_tree {
 class ArmorToGoalAction : public BT::StatefulActionNode, rclcpp::Node
 {
