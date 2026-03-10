@@ -2,6 +2,7 @@
 #define RM_BEHAVIOR_TREE__PLUGINS__ACTION__MOVE_AROUND_HPP_
 
 #include <behaviortree_cpp/basic_types.h>
+#include <geometry_msgs/msg/detail/pose_stamped__struct.hpp>
 #include <geometry_msgs/msg/transform_stamped.hpp>
 #include <rclcpp/node.hpp>
 #include <rclcpp/publisher.hpp>
@@ -30,8 +31,8 @@ public:
 
             BT::InputPort<int>("expected_nearby_goal_count"), 
             BT::InputPort<float>("expected_dis"),
-            //BT::InputPort<geometry_msgs::msg::TransformStamped>("message"),
-            BT::InputPort<std::pair<float, float>>("robot_pose")
+            //BT::InputPort<geometry_msgs::msg::PoseStamped>("message"),
+            BT::InputPort<geometry_msgs::msg::PoseStamped>("robot_pose")
         
         };
     }
@@ -43,7 +44,7 @@ public:
     void onHalted() override;
 
     void generatePoints(
-        geometry_msgs::msg::TransformStamped location, double distance,
+        geometry_msgs::msg::PoseStamped location, double distance,
         geometry_msgs::msg::PoseStamped & nearby_random_point);
     
     void setMessage(geometry_msgs::msg::PoseStamped & msg);
@@ -54,8 +55,8 @@ private:
     int goal_count;
     int expected_nearby_goal_count;
     float expected_dis;
-    geometry_msgs::msg::TransformStamped robot_location;
-    geometry_msgs::msg::TransformStamped current_location;
+    geometry_msgs::msg::PoseStamped robot_location;
+    geometry_msgs::msg::PoseStamped current_location;
     geometry_msgs::msg::PoseStamped nearby_random_point;
     rclcpp::Publisher<geometry_msgs::msg::PoseStamped>::SharedPtr publisher_goal_pose;
 };

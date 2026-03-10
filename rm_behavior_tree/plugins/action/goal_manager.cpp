@@ -70,10 +70,10 @@ BT::NodeStatus GoalManagerAction::onTick(
     RCLCPP_INFO(node_->get_logger(), "Received %zu observation points", last_msg->points.size());
 
     // Get robot pose and speed from input port
-    geometry_msgs::msg::TransformStamped robot_pose;
+    geometry_msgs::msg::PoseStamped robot_pose;
     double current_speed = 0.0;
 
-    if (!getInput<geometry_msgs::msg::TransformStamped>("robot_pose", robot_pose)) {
+    if (!getInput<geometry_msgs::msg::PoseStamped>("robot_pose", robot_pose)) {
         RCLCPP_ERROR(node_->get_logger(), "Failed to get robot_pose from input port");
         return BT::NodeStatus::FAILURE;
     }
@@ -277,7 +277,7 @@ BT::NodeStatus GoalManagerAction::onTick(
 }
 
 uint32_t GoalManagerAction::findNearestIdlePoint(
-    const geometry_msgs::msg::TransformStamped & robot_pose)
+    const geometry_msgs::msg::PoseStamped & robot_pose)
 {
     double min_dist = std::numeric_limits<double>::max();
     uint32_t best_id = 0;
@@ -316,7 +316,7 @@ uint32_t GoalManagerAction::findNearestIdlePoint(
 }
 
 uint32_t GoalManagerAction::findNearestPointConsideringRetry(
-    const geometry_msgs::msg::TransformStamped & robot_pose)
+    const geometry_msgs::msg::PoseStamped & robot_pose)
 {
     double min_dist = std::numeric_limits<double>::max();
     uint32_t best_id = 0;
@@ -349,11 +349,11 @@ uint32_t GoalManagerAction::findNearestPointConsideringRetry(
 }
 
 double GoalManagerAction::euclideanDistance(
-    const geometry_msgs::msg::TransformStamped & pose1,
+    const geometry_msgs::msg::PoseStamped & pose1,
     const rm_decision_interfaces::msg::ObservationPoint & point2)
 {
-    double dx = pose1.transform.translation.x - point2.pose.position.x;
-    double dy = pose1.transform.translation.y - point2.pose.position.y;
+    double dx = pose1.pose.position.x - point2.pose.position.x;
+    double dy = pose1.pose.position.y - point2.pose.position.y;
     return std::sqrt(dx * dx + dy * dy);
 }
 
@@ -496,7 +496,7 @@ void GoalManagerAction::resetAllPoints()
 }
 
 std::vector<uint32_t> GoalManagerAction::sortPointsByNearestNeighbor(
-    const geometry_msgs::msg::TransformStamped & robot_pose)
+    const geometry_msgs::msg::PoseStamped & robot_pose)
 {
     std::vector<uint32_t> sorted_ids;
     std::set<uint32_t> unvisited;
@@ -508,7 +508,7 @@ std::vector<uint32_t> GoalManagerAction::sortPointsByNearestNeighbor(
         }
     }
 
-    geometry_msgs::msg::TransformStamped current_pose = robot_pose;
+    geometry_msgs::msg::PoseStamped current_pose = robot_pose;
 
     // Greedy nearest neighbor algorithm
     while (!unvisited.empty()) {
@@ -533,8 +533,8 @@ std::vector<uint32_t> GoalManagerAction::sortPointsByNearestNeighbor(
             // Update current pose to the selected point
             auto it = observation_points_.find(nearest_id);
             if (it != observation_points_.end()) {
-                current_pose.transform.translation.x = it->second.pose.position.x;
-                current_pose.transform.translation.y = it->second.pose.position.y;
+                current_pose.pose.position.x = it->second.pose.position.x;
+                current_pose.pose.position.y = it->second.pose.position.y;
             }
         } else {
             break;  // Should not happen
@@ -549,7 +549,7 @@ std::vector<uint32_t> GoalManagerAction::sortPointsByNearestNeighbor(
 // ============================================================================
 
 uint32_t GoalManagerAction::findBestPointWithHysteresis(
-    const geometry_msgs::msg::TransformStamped & robot_pose)
+    const geometry_msgs::msg::PoseStamped & robot_pose)
 {
     // If we have a locked goal, check if it's still valid
     if (locked_goal_id_ != 0) {
@@ -655,7 +655,7 @@ void GoalManagerAction::releaseGoalLock()
 
 bool GoalManagerAction::checkSemanticArrival(
     uint32_t point_id,
-    const geometry_msgs::msg::TransformStamped & robot_pose,
+    const geometry_msgs::msg::PoseStamped & robot_pose,
     double current_speed)
 {
     auto visit_it = visit_info_map_.find(point_id);
@@ -707,7 +707,7 @@ bool GoalManagerAction::checkStayCompletion(uint32_t point_id)
 // ============================================================================
 
 bool GoalManagerAction::isPointTooClose(
-    const geometry_msgs::msg::TransformStamped & robot_pose,
+    const geometry_msgs::msg::PoseStamped & robot_pose,
     const rm_decision_interfaces::msg::ObservationPoint & point)
 {
     double dist = euclideanDistance(robot_pose, point);

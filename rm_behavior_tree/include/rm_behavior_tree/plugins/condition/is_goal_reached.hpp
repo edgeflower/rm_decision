@@ -39,7 +39,7 @@ public:
             BT::InputPort<bool>("check_current", false, "Check if currently selected goal is reached"),
             BT::InputPort<uint32_t>("current_goal_id", 0, "Current goal ID from GoalManager"),
             BT::InputPort<std::vector<GoalStatusEntry>>("goal_statuses", "Goal statuses from GoalManager"),
-            BT::InputPort<geometry_msgs::msg::TransformStamped>("robot_pose", "Current robot pose for approximate check"),
+            BT::InputPort<geometry_msgs::msg::PoseStamped>("robot_pose", "Current robot pose for approximate check"),
             BT::InputPort<geometry_msgs::msg::PoseStamped>("current_goal", "Current goal pose for approximate check"),
             BT::InputPort<bool>("allow_approximate", false, "Allow success based on proximity even if not DONE"),
             BT::InputPort<double>("approximate_distance", 0.2, "Distance threshold for approximate success (meters)")
@@ -52,7 +52,7 @@ public:
     bool isGoalReached(uint32_t goal_id, const std::vector<GoalStatusEntry>& statuses) const;
 
     // Helper to check approximate arrival
-    bool isApproximatelyReached(const geometry_msgs::msg::TransformStamped& robot_pose,
+    bool isApproximatelyReached(const geometry_msgs::msg::PoseStamped& robot_pose,
                                const geometry_msgs::msg::PoseStamped& goal_pose) const;
 };
 

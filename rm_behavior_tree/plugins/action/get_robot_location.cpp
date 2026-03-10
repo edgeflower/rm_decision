@@ -21,15 +21,15 @@ BT::NodeStatus GetRobotLocationAction::onTick(
         return BT::NodeStatus::FAILURE;
     }
 
-    // Convert Odometry to TransformStamped
+    // Convert Odometry to PoseStamped
     robot_pose_.header.stamp = node_->now();
     robot_pose_.header.frame_id = last_msg->header.frame_id;
 
-    robot_pose_.transform.translation.x = last_msg->pose.pose.position.x;
-    robot_pose_.transform.translation.y = last_msg->pose.pose.position.y;
-    robot_pose_.transform.translation.z = last_msg->pose.pose.position.z;
+    robot_pose_.pose.position.x = last_msg->pose.pose.position.x;
+    robot_pose_.pose.position.y = last_msg->pose.pose.position.y;
+    robot_pose_.pose.position.z = last_msg->pose.pose.position.z;
 
-    robot_pose_.transform.rotation = last_msg->pose.pose.orientation;
+    robot_pose_.pose.orientation = last_msg->pose.pose.orientation;
 
     // Output the robot pose
     if (setOutput("robot_pose", robot_pose_)) {

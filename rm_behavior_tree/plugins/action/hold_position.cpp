@@ -137,5 +137,5 @@ void HoldPositionAction::updateHeldGoal(const armor_interfaces::msg::Target &tar
 #include "behaviortree_cpp/bt_factory.h"
 BT_REGISTER_NODES(factory)
 {
-    factory.registerNodeType<rm_behavior_tree::HoldPosition>("HoldPosition");
+    factory.registerNodeType<rm_behavior_tree::HoldPositionAction>("HoldPosition");
 }

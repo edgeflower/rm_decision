@@ -235,7 +235,7 @@ geometry_msgs::msg::PoseStamped ArmorToGoalAction::calculateOffsetGoal(
     return goal;
 }
 
-void ArmorToGoalAction::setMessage(geometry_msgs::msg::TransformStamped location,
+void ArmorToGoalAction::setMessage(geometry_msgs::msg::PoseStamped location,
                                    geometry_msgs::msg::PoseStamped &armor_target_location)
 {
     // This function appears to be unused in the current implementation

@@ -5,10 +5,10 @@
 #include <behaviortree_ros2/bt_topic_sub_node.hpp>
 #include <behaviortree_ros2/ros_node_params.hpp>
 
-#include <geometry_msgs/msg/detail/transform_stamped__struct.hpp>
+#include <geometry_msgs/msg/pose_stamped.hpp>
 #include <memory>
 
-#include <nav_msgs/msg/detail/odometry__struct.hpp>
+#include <nav_msgs/msg/odometry.hpp>
 #include <rclcpp/logging.hpp>
 #include <rclcpp/node.hpp>
 
@@ -22,27 +22,27 @@ GetLocationAction::GetLocationAction(
 BT::NodeStatus GetLocationAction::onTick(
     const std::shared_ptr<nav_msgs::msg::Odometry>& last_msg)
 {
-    geometry_msgs::msg::TransformStamped robot_location;
+    geometry_msgs::msg::PoseStamped robot_location;
     robot_location.header.stamp = node_->now();
     robot_location.header.frame_id = "map";
-    robot_location.transform.translation.x = 0.0;
-    robot_location.transform.translation.y = 0.0;
-    robot_location.transform.translation.z = 0.0;
-    robot_location.transform.rotation.x = 0.0;
-    robot_location.transform.rotation.y = 0.0;
-    robot_location.transform.rotation.z = 0.0;
-    robot_location.transform.rotation.w = 1.0;
+    robot_location.pose.position.x = 0.0;
+    robot_location.pose.position.y = 0.0;
+    robot_location.pose.position.z = 0.0;
+    robot_location.pose.orientation.x = 0.0;
+    robot_location.pose.orientation.y = 0.0;
+    robot_location.pose.orientation.z = 0.0;
+    robot_location.pose.orientation.w = 1.0;
 
     if (last_msg) {
-        robot_location.transform.translation.x = last_msg->pose.pose.position.x;
-        robot_location.transform.translation.y = last_msg->pose.pose.position.y;
-        // 只使用平面位置信息，z轴和旋转保持默认值
+        robot_location.pose.position.x = last_msg->pose.pose.position.x;
+        robot_location.pose.position.y = last_msg->pose.pose.position.y;
+        robot_location.pose.position.z = last_msg->pose.pose.position.z;
+        robot_location.pose.orientation = last_msg->pose.pose.orientation;
 
         setOutput("robot_location", robot_location);
 
-
-        RCLCPP_INFO(logger(), "[GetLocation] pose.position.x: %f", robot_location.transform.translation.x);
-        RCLCPP_INFO(logger(), "[GetLocation] pose.position.y: %f", robot_location.transform.translation.y);
+        RCLCPP_DEBUG(logger(), "[GetLocation] pose.position.x: %f", robot_location.pose.position.x);
+        RCLCPP_DEBUG(logger(), "[GetLocation] pose.position.y: %f", robot_location.pose.position.y);
 
         return BT::NodeStatus::SUCCESS;
     } else {

@@ -98,11 +98,6 @@ private:
         params_should_reset.nh = getSharedPtr();
         params_should_reset.default_port_value = "/observation_points";
 
-        // Parameters for is_goal_reached (subscribes to /observation_points)
-        BT::RosNodeParams params_is_goal_reached;
-        params_is_goal_reached.nh = getSharedPtr();
-        params_is_goal_reached.default_port_value = "/observation_points";
-
         // Parameters for get_robot_location (subscribes to /odometry)
         BT::RosNodeParams params_get_robot_location;
         params_get_robot_location.nh = getSharedPtr();
@@ -137,8 +132,13 @@ private:
             "print_message",
             "enemy_position_filter",
             "armor_to_goal",
-            "set_posture"
-            // Note: goal_manager, should_reset_observation, is_goal_reached, get_robot_location removed
+            "confidence_hysteresis",
+            "hold_position",
+            "check_hysteresis_state",
+            "abort_navigation",
+            "wait",
+            "is_goal_reached"
+            // Note: goal_manager, should_reset_observation, get_robot_location removed
             // They will be registered using RegisterRosNode below
         };
 
@@ -160,7 +160,7 @@ private:
         // 注册观察点相关插件（使用共享节点）
         RegisterRosNode(*factory, BT::SharedLibrary::getOSName("goal_manager"), params_goal_manager);
         RegisterRosNode(*factory, BT::SharedLibrary::getOSName("should_reset_observation"), params_should_reset);
-        RegisterRosNode(*factory, BT::SharedLibrary::getOSName("is_goal_reached"), params_is_goal_reached);
+        // is_goal_reached: moved to bt_plugins_libs (uses Blackboard, not RosNodeParams)
         RegisterRosNode(*factory, BT::SharedLibrary::getOSName("get_robot_location"), params_get_robot_location);
         RegisterRosNode(*factory, BT::SharedLibrary::getOSName("get_location"), params_get_location);
     }

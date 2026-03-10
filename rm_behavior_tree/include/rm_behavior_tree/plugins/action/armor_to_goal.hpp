@@ -42,7 +42,7 @@ public:
     void onHalted() override;
 
     // DEPRECATED: Kept for backward compatibility
-    void setMessage(geometry_msgs::msg::TransformStamped location,
+    void setMessage(geometry_msgs::msg::PoseStamped location,
                    geometry_msgs::msg::PoseStamped &armor_target_location);
 
     // DEPRECATED: Now publishing directly in onRunning to avoid duplicate calculation

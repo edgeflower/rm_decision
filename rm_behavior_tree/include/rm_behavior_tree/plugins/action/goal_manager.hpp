@@ -3,6 +3,7 @@
 
 #include "behaviortree_ros2/bt_topic_sub_node.hpp"
 #include "behaviortree_ros2/ros_node_params.hpp"
+#include <geometry_msgs/msg/detail/pose_stamped__struct.hpp>
 #include <geometry_msgs/msg/pose_stamped.hpp>
 #include <geometry_msgs/msg/transform_stamped.hpp>
 #include <rm_decision_interfaces/msg/observation_points.hpp>
@@ -69,7 +70,7 @@ public:
     {
         // Combine custom ports with base class ports
         BT::PortsList custom_ports = {
-            BT::InputPort<geometry_msgs::msg::TransformStamped>("robot_pose"),
+            BT::InputPort<geometry_msgs::msg::PoseStamped>("robot_pose"),
             BT::InputPort<double>("lethal_threshold", 252, "Lethal cost threshold"),
             BT::InputPort<double>("high_cost_threshold", 200, "High cost threshold for delay"),
             BT::InputPort<double>("visit_timeout", 30.0, "Max time to mark point as DONE (seconds)"),
@@ -132,24 +133,24 @@ private:
     double min_exclusion_radius_;
 
     // Helper functions
-    uint32_t findNearestIdlePoint(const geometry_msgs::msg::TransformStamped & robot_pose);
-    uint32_t findNearestPointConsideringRetry(const geometry_msgs::msg::TransformStamped & robot_pose);
-    double euclideanDistance(const geometry_msgs::msg::TransformStamped & pose1,
+    uint32_t findNearestIdlePoint(const geometry_msgs::msg::PoseStamped & robot_pose);
+    uint32_t findNearestPointConsideringRetry(const geometry_msgs::msg::PoseStamped & robot_pose);
+    double euclideanDistance(const geometry_msgs::msg::PoseStamped & pose1,
                               const rm_decision_interfaces::msg::ObservationPoint & point2);
 
     // Soft lock / Hysteresis functions
-    uint32_t findBestPointWithHysteresis(const geometry_msgs::msg::TransformStamped & robot_pose);
+    uint32_t findBestPointWithHysteresis(const geometry_msgs::msg::PoseStamped & robot_pose);
     bool shouldSwitchGoal(uint32_t new_id, double new_score);
     void releaseGoalLock();
 
     // Semantic arrival functions
     bool checkSemanticArrival(uint32_t point_id,
-                              const geometry_msgs::msg::TransformStamped & robot_pose,
+                              const geometry_msgs::msg::PoseStamped & robot_pose,
                               double current_speed);
     bool checkStayCompletion(uint32_t point_id);
 
     // Dynamic proximity exclusion
-    bool isPointTooClose(const geometry_msgs::msg::TransformStamped & robot_pose,
+    bool isPointTooClose(const geometry_msgs::msg::PoseStamped & robot_pose,
                          const rm_decision_interfaces::msg::ObservationPoint & point);
 
     // Failure penalty
@@ -168,7 +169,7 @@ private:
     bool retryBlockedPoint(uint32_t point_id);
 
     // TSP nearest neighbor algorithm
-    std::vector<uint32_t> sortPointsByNearestNeighbor(const geometry_msgs::msg::TransformStamped & robot_pose);
+    std::vector<uint32_t> sortPointsByNearestNeighbor(const geometry_msgs::msg::PoseStamped & robot_pose);
 };
 
 } // namespace rm_behavior_tree

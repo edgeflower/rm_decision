@@ -25,14 +25,14 @@ MoveAroundAction::MoveAroundAction(const std::string& name, const BT::NodeConfig
 BT::NodeStatus MoveAroundAction::onStart()
 {
     current_location.header.frame_id = "map";
-    current_location.transform.translation.x = 0.0;
-    current_location.transform.translation.y = 0.0;
-    current_location.transform.translation.z = 0.0;
+    current_location.pose.position.x = 0.0;
+    current_location.pose.position.y = 0.0;
+    current_location.pose.position.z = 0.0;
 
-    current_location.transform.rotation.x = 0.0;
-    current_location.transform.rotation.y = 0.0;
-    current_location.transform.rotation.z = 0.0;
-    current_location.transform.rotation.w = 1.0;
+    current_location.pose.orientation.x = 0.0;
+    current_location.pose.orientation.y = 0.0;
+    current_location.pose.orientation.z = 0.0;
+    current_location.pose.orientation.w = 1.0;
 
     expected_dis = 0.0;
     expected_nearby_goal_count = 0.0;
@@ -45,8 +45,8 @@ BT::NodeStatus MoveAroundAction::onStart()
     }
     */
     if (getInput("robot_pose", robot_location)) {
-        current_location.transform.translation.x = robot_location.transform.translation.x;
-        current_location.transform.translation.y = robot_location.transform.translation.y;
+        current_location.pose.position.x = robot_location.pose.position.x;
+        current_location.pose.position.y = robot_location.pose.position.y;
     } else {
         RCLCPP_DEBUG(this->get_logger(),"没有得到 robot_location");
         return BT::NodeStatus::FAILURE;
@@ -93,7 +93,7 @@ void MoveAroundAction::onHalted()
 }
 
 void MoveAroundAction::generatePoints(
-    geometry_msgs::msg::TransformStamped location, double distance,
+    geometry_msgs::msg::PoseStamped location, double distance,
     geometry_msgs::msg::PoseStamped& nearby_random_point)
 {
     // 创建随机数生成器
@@ -105,14 +105,14 @@ void MoveAroundAction::generatePoints(
     double angle = dis(gen);
     nearby_random_point.header.stamp = rclcpp::Clock().now();
     nearby_random_point.header.frame_id = "map";
-    nearby_random_point.pose.position.x = location.transform.translation.x + distance * cos(angle);
-    nearby_random_point.pose.position.y = location.transform.translation.y + distance * sin(angle);
-    nearby_random_point.pose.position.z = location.transform.translation.z;
+    nearby_random_point.pose.position.x = location.pose.position.x + distance * cos(angle);
+    nearby_random_point.pose.position.y = location.pose.position.y + distance * sin(angle);
+    nearby_random_point.pose.position.z = location.pose.position.z;
 
-    nearby_random_point.pose.orientation.x = location.transform.rotation.x;
-    nearby_random_point.pose.orientation.y = location.transform.rotation.y;
-    nearby_random_point.pose.orientation.z = location.transform.rotation.z;
-    nearby_random_point.pose.orientation.w = location.transform.rotation.w;
+    nearby_random_point.pose.orientation.x = location.pose.orientation.x;
+    nearby_random_point.pose.orientation.y = location.pose.orientation.y;
+    nearby_random_point.pose.orientation.z = location.pose.orientation.z;
+    nearby_random_point.pose.orientation.w = location.pose.orientation.w;
 }
 
 void MoveAroundAction::sendGoalPose(geometry_msgs::msg::PoseStamped& msg)

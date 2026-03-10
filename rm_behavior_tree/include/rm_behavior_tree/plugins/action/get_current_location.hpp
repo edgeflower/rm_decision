@@ -6,6 +6,7 @@
 #include "tf2_ros/transform_listener.h"
 #include <rclcpp/executors/multi_threaded_executor.hpp>
 #include <rclcpp/node.hpp>
+#include <geometry_msgs/msg/pose_stamped.hpp>
 
 namespace rm_behavior_tree
 {
@@ -19,7 +20,7 @@ public:
 
     static BT::PortsList providedPorts()
     {
-        return {BT::OutputPort<geometry_msgs::msg::TransformStamped>("current_location")};
+        return {BT::OutputPort<geometry_msgs::msg::PoseStamped>("current_location")};
     }
 
 

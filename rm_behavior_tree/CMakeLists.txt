@@ -123,6 +123,21 @@ ament_auto_add_library(armor_to_goal SHARED
   plugins/action/armor_to_goal.cpp)
 add_target_dependencies(armor_to_goal)
 
+# Hold Position Action Node
+ament_auto_add_library(hold_position SHARED
+  plugins/action/hold_position.cpp)
+add_target_dependencies(hold_position)
+
+# Abort Navigation Action Node
+ament_auto_add_library(abort_navigation SHARED
+  plugins/action/abort_navigation.cpp)
+add_target_dependencies(abort_navigation)
+
+# Wait Action Node
+ament_auto_add_library(wait SHARED
+  plugins/action/wait.cpp)
+add_target_dependencies(wait)
+
 # Goal Manager Action Node
 ament_auto_add_library(goal_manager SHARED
   plugins/action/goal_manager.cpp)
@@ -167,6 +182,16 @@ add_target_dependencies(is_goal_reached)
 ament_auto_add_library(should_reset_observation SHARED
  plugins/condition/should_reset_observation.cpp)
 add_target_dependencies(should_reset_observation)
+
+# Confidence Hysteresis Condition Node
+ament_auto_add_library(confidence_hysteresis SHARED
+ plugins/condition/confidence_hysteresis.cpp)
+add_target_dependencies(confidence_hysteresis)
+
+# Check Hysteresis State Condition Node
+ament_auto_add_library(check_hysteresis_state SHARED
+ plugins/condition/check_hysteresis_state.cpp)
+add_target_dependencies(check_hysteresis_state)
 
 # control
 ament_auto_add_library(decision_switch SHARED

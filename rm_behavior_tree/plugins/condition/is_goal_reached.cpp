@@ -60,10 +60,10 @@ BT::NodeStatus IsGoalReachedCondition::checkGoalReached()
     getInput<bool>("allow_approximate", allow_approximate);
 
     if (allow_approximate) {
-        geometry_msgs::msg::TransformStamped robot_pose;
+        geometry_msgs::msg::PoseStamped robot_pose;
         geometry_msgs::msg::PoseStamped current_goal;
 
-        if (getInput<geometry_msgs::msg::TransformStamped>("robot_pose", robot_pose) &&
+        if (getInput<geometry_msgs::msg::PoseStamped>("robot_pose", robot_pose) &&
             getInput<geometry_msgs::msg::PoseStamped>("current_goal", current_goal)) {
 
             if (isApproximatelyReached(robot_pose, current_goal)) {
@@ -89,7 +89,7 @@ bool IsGoalReachedCondition::isGoalReached(uint32_t goal_id, const std::vector<G
 }
 
 bool IsGoalReachedCondition::isApproximatelyReached(
-    const geometry_msgs::msg::TransformStamped& robot_pose,
+    const geometry_msgs::msg::PoseStamped& robot_pose,
     const geometry_msgs::msg::PoseStamped& goal_pose) const
 {
     // Get approximate distance threshold
@@ -97,8 +97,8 @@ bool IsGoalReachedCondition::isApproximatelyReached(
     const_cast<IsGoalReachedCondition*>(this)->getInput<double>("approximate_distance", threshold);
 
     // Calculate Euclidean distance
-    double dx = robot_pose.transform.translation.x - goal_pose.pose.position.x;
-    double dy = robot_pose.transform.translation.y - goal_pose.pose.position.y;
+    double dx = robot_pose.pose.position.x - goal_pose.pose.position.x;
+    double dy = robot_pose.pose.position.y - goal_pose.pose.position.y;
     double distance = std::sqrt(dx * dx + dy * dy);
 
     return distance <= threshold;
