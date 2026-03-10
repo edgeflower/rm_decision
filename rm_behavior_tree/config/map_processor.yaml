@@ -1,0 +1,8 @@
+# Map Processor Node Configuration
+map_processor_node:
+  ros__parameters:
+    map_topic: "/map"
+    sample_step: 2.0
+    robot_radius: 0.3
+    ray_count: 36
+    update_rate: 0.1

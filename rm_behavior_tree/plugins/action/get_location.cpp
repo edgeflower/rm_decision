@@ -22,12 +22,27 @@ GetLocationAction::GetLocationAction(
 BT::NodeStatus GetLocationAction::onTick(
     const std::shared_ptr<nav_msgs::msg::Odometry>& last_msg)
 {
-    if (last_msg) {
-        setOutput("robot_location", *last_msg);
+    geometry_msgs::msg::TransformStamped robot_location;
+    robot_location.header.stamp = node_->now();
+    robot_location.header.frame_id = "map";
+    robot_location.transform.translation.x = 0.0;
+    robot_location.transform.translation.y = 0.0;
+    robot_location.transform.translation.z = 0.0;
+    robot_location.transform.rotation.x = 0.0;
+    robot_location.transform.rotation.y = 0.0;
+    robot_location.transform.rotation.z = 0.0;
+    robot_location.transform.rotation.w = 1.0;
 
-        RCLCPP_DEBUG(logger(), "[GetLocation] pose.position.x: %f", last_msg->pose.pose.position.x);
-        RCLCPP_DEBUG(logger(), "[GetLocation] pose.position.y: %f", last_msg->pose.pose.position.y);
-        RCLCPP_DEBUG(logger(), "[GetLocation] pose.position.z: %f", last_msg->pose.pose.position.z);
+    if (last_msg) {
+        robot_location.transform.translation.x = last_msg->pose.pose.position.x;
+        robot_location.transform.translation.y = last_msg->pose.pose.position.y;
+        // 只使用平面位置信息，z轴和旋转保持默认值
+
+        setOutput("robot_location", robot_location);
+
+
+        RCLCPP_INFO(logger(), "[GetLocation] pose.position.x: %f", robot_location.transform.translation.x);
+        RCLCPP_INFO(logger(), "[GetLocation] pose.position.y: %f", robot_location.transform.translation.y);
 
         return BT::NodeStatus::SUCCESS;
     } else {

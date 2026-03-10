@@ -54,7 +54,7 @@ private:
     int goal_count;
     int expected_nearby_goal_count;
     float expected_dis;
-    std::pair<float, float> robot_location;
+    geometry_msgs::msg::TransformStamped robot_location;
     geometry_msgs::msg::TransformStamped current_location;
     geometry_msgs::msg::PoseStamped nearby_random_point;
     rclcpp::Publisher<geometry_msgs::msg::PoseStamped>::SharedPtr publisher_goal_pose;

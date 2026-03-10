@@ -1,41 +1,50 @@
 #include "rm_behavior_tree/plugins/action/get_robot_location.hpp"
-#include <behaviortree_cpp/action_node.h>
-#include <behaviortree_cpp/basic_types.h>
-#include <behaviortree_cpp/tree_node.h>
-#include <behaviortree_ros2/bt_topic_sub_node.hpp>
-#include <behaviortree_ros2/ros_node_params.hpp>
-#include <functional>
-#include <memory>
-#include <nav_msgs/msg/detail/odometry__struct.hpp>
+#include <nav_msgs/msg/odometry.hpp>
+#include <geometry_msgs/msg/transform_stamped.hpp>
 #include <rclcpp/logging.hpp>
+
 namespace rm_behavior_tree {
+
 GetRobotLocationAction::GetRobotLocationAction(
-    const std::string& name, const BT::NodeConfig& config)
-    : BT::SyncActionNode(name, config)
+    const std::string& name,
+    const BT::NodeConfig& config,
+    const BT::RosNodeParams& params)
+    : BT::RosTopicSubNode<nav_msgs::msg::Odometry>(name, config, params)
 {
-    node_ = std::make_shared<rclcpp::Node>("get_robot_location");
-
-    odometry_sub_ = node_->create_subscription<nav_msgs::msg::Odometry>(
-        "/red_standard_robot1/odometry", 10,
-        std::bind(&GetRobotLocationAction::updateOdometry, this, std::placeholders::_1));
 }
-BT::NodeStatus GetRobotLocationAction::tick()
-{   robot_x_ = 0.0;
-    robot_y_ = 0.0;
-    rclcpp::spin_some(node_);
 
-    if (setOutput("robot_pose", std::make_pair(robot_x_, robot_y_))) {
-        RCLCPP_INFO(node_->get_logger(),"robot x 坐标 %.2f  robot y 坐标 %.2f", robot_x_ , robot_y_);
+BT::NodeStatus GetRobotLocationAction::onTick(
+    const std::shared_ptr<nav_msgs::msg::Odometry>& last_msg)
+{
+    if (!last_msg) {
+        RCLCPP_WARN(node_->get_logger(), "[GetRobotLocation] Waiting for odometry message...");
+        return BT::NodeStatus::FAILURE;
+    }
+
+    // Convert Odometry to TransformStamped
+    robot_pose_.header.stamp = node_->now();
+    robot_pose_.header.frame_id = last_msg->header.frame_id;
+
+    robot_pose_.transform.translation.x = last_msg->pose.pose.position.x;
+    robot_pose_.transform.translation.y = last_msg->pose.pose.position.y;
+    robot_pose_.transform.translation.z = last_msg->pose.pose.position.z;
+
+    robot_pose_.transform.rotation = last_msg->pose.pose.orientation;
+
+    // Output the robot pose
+    if (setOutput("robot_pose", robot_pose_)) {
+        RCLCPP_DEBUG(node_->get_logger(),
+                    "[GetRobotLocation] robot x: %.2f, y: %.2f",
+                    last_msg->pose.pose.position.x,
+                    last_msg->pose.pose.position.y);
         return BT::NodeStatus::SUCCESS;
     } else {
-        RCLCPP_WARN(node_->get_logger(),"妈的，出错了");
+        RCLCPP_ERROR(node_->get_logger(), "[GetRobotLocation] Failed to set output port");
         return BT::NodeStatus::FAILURE;
     }
 }
 
-}
-#include "behaviortree_cpp/bt_factory.h"
-BT_REGISTER_NODES(factory)
-{
-    factory.registerNodeType<rm_behavior_tree::GetRobotLocationAction>("GetRobotLocation");
-}
+} // namespace rm_behavior_tree
+
+#include "behaviortree_ros2/plugins.hpp"
+CreateRosNodePlugin(rm_behavior_tree::GetRobotLocationAction, "GetRobotLocation")

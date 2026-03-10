@@ -45,8 +45,8 @@ BT::NodeStatus MoveAroundAction::onStart()
     }
     */
     if (getInput("robot_pose", robot_location)) {
-        current_location.transform.translation.x = robot_location.first;
-        current_location.transform.translation.y = robot_location.second;
+        current_location.transform.translation.x = robot_location.transform.translation.x;
+        current_location.transform.translation.y = robot_location.transform.translation.y;
     } else {
         RCLCPP_DEBUG(this->get_logger(),"没有得到 robot_location");
         return BT::NodeStatus::FAILURE;

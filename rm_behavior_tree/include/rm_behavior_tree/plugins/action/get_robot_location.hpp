@@ -1,42 +1,38 @@
 #ifndef RM_BEHAVIOR_TREE_PLUGINS_ACTION_GET_ROBOT_LOCATION_
 #define RM_BEHAVIOR_TREE_PLUGINS_ACTION_GET_ROBOT_LOCATION_
 
-#include "behaviortree_cpp/action_node.h"
-#include "geometry_msgs/msg/pose_stamped.hpp"
-#include "nav_msgs/msg/odometry.hpp"
-#include "rclcpp/rclcpp.hpp"
+#include "behaviortree_ros2/bt_topic_sub_node.hpp"
+#include "behaviortree_ros2/ros_node_params.hpp"
+#include <geometry_msgs/msg/transform_stamped.hpp>
+#include <nav_msgs/msg/odometry.hpp>
+#include <rclcpp/rclcpp.hpp>
 #include <behaviortree_cpp/basic_types.h>
 #include <behaviortree_cpp/tree_node.h>
-#include <behaviortree_ros2/ros_node_params.hpp>
-#include <nav_msgs/msg/detail/odometry__struct.hpp>
-#include <rclcpp/node.hpp>
-#include <rclcpp/subscription.hpp>
-#include <utility>
+
 namespace rm_behavior_tree {
-class GetRobotLocationAction : public BT::SyncActionNode {
+
+class GetRobotLocationAction : public BT::RosTopicSubNode<nav_msgs::msg::Odometry>
+{
 public:
-    GetRobotLocationAction(const std::string& name, const BT::NodeConfig& config);
+    GetRobotLocationAction(const std::string& name,
+                          const BT::NodeConfig& config,
+                          const BT::RosNodeParams& params);
 
     static BT::PortsList providedPorts()
     {
-        return {
-            BT::OutputPort<std::pair<float, float>>("robot_pose")
+        BT::PortsList custom_ports = {
+            
+            BT::OutputPort<geometry_msgs::msg::TransformStamped>("robot_pose")
         };
+        return BT::RosTopicSubNode<nav_msgs::msg::Odometry>::providedBasicPorts(custom_ports);
     }
-    BT::NodeStatus tick();
+
+    BT::NodeStatus onTick(const std::shared_ptr<nav_msgs::msg::Odometry>& last_msg) override;
 
 private:
-    rclcpp::Node::SharedPtr node_;
-    float robot_x_, robot_y_;
-    rclcpp::Subscription<nav_msgs::msg::Odometry>::SharedPtr odometry_sub_;
-
-    void updateOdometry(const nav_msgs::msg::Odometry::SharedPtr msg)
-    {
-        robot_x_ = msg->pose.pose.position.x;
-        robot_y_ = msg->pose.pose.position.y;
-    }
+    geometry_msgs::msg::TransformStamped robot_pose_;
 };
 
-}
+} // namespace rm_behavior_tree
 
 #endif // RM_BEHAVIOR_TREE_PLUGINS_ACTION_GET_ROBOT_LOCATION_

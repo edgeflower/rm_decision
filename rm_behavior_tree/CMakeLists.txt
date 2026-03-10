@@ -13,6 +13,7 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 find_package(ament_cmake_auto REQUIRED)
 find_package(spdlog REQUIRED)
 find_package(fmt REQUIRED)
+find_package(OpenCV 4 REQUIRED)
 ament_auto_find_build_dependencies()
 
 
@@ -21,6 +22,7 @@ ament_auto_find_build_dependencies()
 set(PACKAGE_INCLUDE_DEPENDS
   rm_decision_interfaces
   rclcpp
+  rclcpp_components
   std_msgs
   nav_msgs
   behaviortree_cpp
@@ -121,6 +123,17 @@ ament_auto_add_library(armor_to_goal SHARED
   plugins/action/armor_to_goal.cpp)
 add_target_dependencies(armor_to_goal)
 
+# Goal Manager Action Node
+ament_auto_add_library(goal_manager SHARED
+  plugins/action/goal_manager.cpp)
+add_target_dependencies(goal_manager)
+
+# Map Processor Node (independent ROS2 node)
+ament_auto_add_executable(map_processor_node
+  src/map_processor_node.cpp)
+add_target_dependencies(map_processor_node)
+target_link_libraries(map_processor_node ${OpenCV_LIBS})
+
 # condition
 
 ament_auto_add_library(is_attacked SHARED
@@ -146,6 +159,14 @@ add_target_dependencies(is_status_ok)
 ament_auto_add_library(is_detect_enenmy SHARED
  plugins/condition/is_detect_enenmy.cpp)
 add_target_dependencies(is_detect_enenmy)
+
+ament_auto_add_library(is_goal_reached SHARED
+ plugins/condition/is_goal_reached.cpp)
+add_target_dependencies(is_goal_reached)
+
+ament_auto_add_library(should_reset_observation SHARED
+ plugins/condition/should_reset_observation.cpp)
+add_target_dependencies(should_reset_observation)
 
 # control
 ament_auto_add_library(decision_switch SHARED

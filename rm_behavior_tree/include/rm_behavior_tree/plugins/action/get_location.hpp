@@ -30,7 +30,7 @@ namespace rm_behavior_tree {
         static BT::PortsList providedPorts(){
             return {
                 BT::InputPort<std::string>("topic_name"),
-                BT::OutputPort<nav_msgs::msg::Odometry>("robot_location")};
+                BT::OutputPort<geometry_msgs::msg::TransformStamped>("robot_location")};
         }
 
         BT::NodeStatus onTick(const std::shared_ptr<nav_msgs::msg::Odometry> &last_msg) override;

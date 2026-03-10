@@ -40,13 +40,13 @@ public:
     void setMessage(geometry_msgs::msg::TransformStamped location ,
         geometry_msgs::msg::PoseStamped & armor_target_location);
 
-    void sendGoalPose(geometry_msgs::msg::PoseStamped & msg);
+    void sendGoalPose(const geometry_msgs::msg::PointStamped & point_msg);
 
 private:
 
     int goal_count;
     geometry_msgs::msg::PoseStamped armor_target_location;
-    geometry_msgs::msg::PoseStamped armor_relative_current_location;
+    geometry_msgs::msg::PointStamped armor_relative_current_location;  // 改为 PointStamped 匹配输入
     nav_msgs::msg::Odometry sentry_current_location;
     rclcpp::Publisher<geometry_msgs::msg::PoseStamped>::SharedPtr publisher_goal_pose;
     std::pair<float, float> robot_location;

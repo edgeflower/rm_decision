@@ -57,36 +57,39 @@ void ArmorToGoalAction::onHalted(){
 }
 
 BT::NodeStatus ArmorToGoalAction::onRunning(){
-    sendGoalPose(armor_target_location);
+    // 传入实际存储目标位置的变量，而不是未初始化的 armor_target_location
+    sendGoalPose(armor_relative_current_location);
     return BT::NodeStatus::RUNNING;
 }
 
 
-void ArmorToGoalAction::sendGoalPose(geometry_msgs::msg::PoseStamped & msg)
-{   
-    msg.header.stamp = rclcpp::Clock().now();
-    msg.header.frame_id = "map";  // 暂定 map作为坐标系，后续根据实际情况调整
-    msg.pose.position.x =  armor_relative_current_location.pose.position.x;
-    msg.pose.position.y =  armor_relative_current_location.pose.position.y;
-    msg.pose.position.z =  0.0; // 2D平面，z轴设为0
+void ArmorToGoalAction::sendGoalPose(const geometry_msgs::msg::PointStamped & point_msg)
+{
+    geometry_msgs::msg::PoseStamped goal_msg;
+    goal_msg.header.stamp = rclcpp::Clock().now();
+    goal_msg.header.frame_id = "map";  // 暂定 map作为坐标系，后续根据实际情况调整
+    goal_msg.pose.position.x = point_msg.point.x;
+    goal_msg.pose.position.y = point_msg.point.y;
+    goal_msg.pose.position.z = 0.0; // 2D平面，z轴设为0
 
-    msg.pose.orientation.x = 0.0; // 2D平面，朝向可以根据需要设定，这里暂时设为0
-    msg.pose.orientation.y = 0.0; // 2D平面，朝向可以根据需要设定，这里暂时设为0
-    msg.pose.orientation.z = 0.0; // 2D平面，朝向可以根据需要设定，这里暂时设为0
-    msg.pose.orientation.w = 1.0; // 2D平面，朝向可以根据需要设定，这里暂时设为1
+    goal_msg.pose.orientation.x = 0.0; // 2D平面，朝向可以根据需要设定，这里暂时设为0
+    goal_msg.pose.orientation.y = 0.0; // 2D平面，朝向可以根据需要设定，这里暂时设为0
+    goal_msg.pose.orientation.z = 0.0; // 2D平面，朝向可以根据需要设定，这里暂时设为0
+    goal_msg.pose.orientation.w = 1.0; // 2D平面，朝向可以根据需要设定，这里暂时设为1
 
     // DEBUG
-    RCLCPP_DEBUG(this->get_logger(),"[ArmorToGoal] 敌人目标点位");        
-    RCLCPP_DEBUG(this->get_logger(),"[ArmorToGoal] pose.position.x %f",msg.pose.position.x);
-    RCLCPP_DEBUG(this->get_logger(),"[ArmorToGoal] pose.position.y %f",msg.pose.position.y);
-    RCLCPP_DEBUG(this->get_logger(),"[ArmorToGoal] pose.position.z %f",msg.pose.position.z);
+    RCLCPP_INFO(this->get_logger(),"[ArmorToGoal] 敌人目标点位");
+    RCLCPP_INFO(this->get_logger(),"[ArmorToGoal] pose.position.x %f",goal_msg.pose.position.x);
+    RCLCPP_INFO(this->get_logger(),"[ArmorToGoal] pose.position.y %f",goal_msg.pose.position.y);
+    /*RCLCPP_INFO(this->get_logger(),"[ArmorToGoal] pose.position.z %f",goal_msg.pose.position.z);
 
-    RCLCPP_DEBUG(this->get_logger(),"[ArmorToGoal] pose.orientation.x %f",msg.pose.orientation.x);        
-    RCLCPP_DEBUG(this->get_logger(),"[ArmorToGoal] pose.orientation.y %f",msg.pose.orientation.y);        
-    RCLCPP_DEBUG(this->get_logger(),"[ArmorToGoal] pose.orientation.z %f",msg.pose.orientation.z);        
-    RCLCPP_DEBUG(this->get_logger(),"[ArmorToGoal] pose.orientation.w %f",msg.pose.orientation.w);        
-     
-    publisher_goal_pose->publish(msg);
+    
+    RCLCPP_INFO(this->get_logger(),"[ArmorToGoal] pose.orientation.x %f",goal_msg.pose.orientation.x);
+    RCLCPP_INFO(this->get_logger(),"[ArmorToGoal] pose.orientation.y %f",goal_msg.pose.orientation.y);
+    RCLCPP_INFO(this->get_logger(),"[ArmorToGoal] pose.orientation.z %f",goal_msg.pose.orientation.z);
+    RCLCPP_INFO(this->get_logger(),"[ArmorToGoal] pose.orientation.w %f",goal_msg.pose.orientation.w);*/
+
+    publisher_goal_pose->publish(goal_msg);
 }
 
 }

@@ -2,11 +2,11 @@
 <root BTCPP_format="4">
   <BehaviorTree ID="attack_robot">
     <ReactiveSequence>
-      <SubArmors topic_name="target_tracking"
-                 armors="{armors}"/>
       <RobotControl stop_gimbal_scan="True"
                     chassis_spin_vel="0.0"
                     gimbal_big_yaw_vel="40.0"/>
+      <SubArmors topic_name="target_tracking"
+                 armors="{armors}"/>
       <WhileDoElse name="Evade when attacked">
         <ReactiveSequence>
           <IsDetectEnemy message="{armors}"/>

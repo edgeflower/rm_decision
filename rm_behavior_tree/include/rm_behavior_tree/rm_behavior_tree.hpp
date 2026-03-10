@@ -19,7 +19,8 @@
 
 namespace rm_behavior_tree {
 
-class BehaviorTreeNode : public rclcpp::Node {
+class BehaviorTreeNode : public rclcpp::Node
+{
 public:
     BehaviorTreeNode() : rclcpp::Node("rm_behavior_tree")
     {
@@ -33,7 +34,15 @@ public:
         // 创建行为树工厂，用于注册插件和生成行为树
         factory = std::make_shared<BT::BehaviorTreeFactory>();
 
-        // 注册所有插件，包括消息更新插件、机器人控制插件、目标发送插件等
+        // 注意：不能在构造函数中调用 shared_from_this()
+        // 需要在对象被 shared_ptr 管理后调用 init()
+    }
+
+    // 初始化方法：注册插件并创建行为树
+    // 必须在对象被 shared_ptr 管理后调用
+    void init()
+    {
+        // 注册所有插件
         registerPlugins();
 
         // 通过行为树工厂从XML文件创建行为树
@@ -43,25 +52,27 @@ public:
         // 启动Groot2调试发布器，用于实时监控行为树状态，指定端口为1667
         const unsigned port = 1667;
         publisher = std::make_shared<BT::Groot2Publisher>(*tree_ptr, port);
-
-        //【如果使用集中管理器统一tick，则不需要内部定时器】
-//        timer_ = this->create_wall_timer(
-//            std::chrono::milliseconds(50),
-//            [this]() { this->onTimer(); }
-//        );
     }
-
-    /*
-    // 兼容旧接口（如果其他地方用到了引用）
-    BT::Tree& getTree() { return *tree_ptr; }
-    */
 
     // 提供一个public接口，返回内部行为树对象指针
     std::shared_ptr<BT::Tree> getTreePtr() { return tree_ptr; }
 
+    // 获取指向自身的 shared_ptr (用于传递给插件)
+    std::shared_ptr<BehaviorTreeNode> getSharedPtr()
+    {
+        // rclcpp::Node 继承了 enable_shared_from_this
+        // 使用 static_pointer_cast 进行类型转换
+        return std::static_pointer_cast<BehaviorTreeNode>(shared_from_this());
+    }
+
 private:
     // 注册所有插件
-    void registerPlugins() {
+    void registerPlugins()
+    {
+        // Get shared node (this) to pass to plugins
+        BT::RosNodeParams params_shared;
+        params_shared.nh = getSharedPtr();
+
         BT::RosNodeParams params_update_msg;
         params_update_msg.nh = std::make_shared<rclcpp::Node>("update_msg");
 
@@ -77,8 +88,30 @@ private:
         params_set_posture.nh = std::make_shared<rclcpp::Node>("set_posture");
         params_set_posture.default_port_value = "set_posture";
 
-        
+        // Parameters for goal_manager (subscribes to /observation_points)
+        BT::RosNodeParams params_goal_manager;
+        params_goal_manager.nh = getSharedPtr();
+        params_goal_manager.default_port_value = "/observation_points";
 
+        // Parameters for should_reset_observation (subscribes to /observation_points)
+        BT::RosNodeParams params_should_reset;
+        params_should_reset.nh = getSharedPtr();
+        params_should_reset.default_port_value = "/observation_points";
+
+        // Parameters for is_goal_reached (subscribes to /observation_points)
+        BT::RosNodeParams params_is_goal_reached;
+        params_is_goal_reached.nh = getSharedPtr();
+        params_is_goal_reached.default_port_value = "/observation_points";
+
+        // Parameters for get_robot_location (subscribes to /odometry)
+        BT::RosNodeParams params_get_robot_location;
+        params_get_robot_location.nh = getSharedPtr();
+        params_get_robot_location.default_port_value = "/odometry";
+
+        // Parameters for get_location (subscribes to /odometry)
+        BT::RosNodeParams params_get_location;
+        params_get_location.nh = getSharedPtr();
+        params_get_location.default_port_value = "/odometry";
 
         const std::vector<std::string> msg_update_plugins_libs = {
             "sub_all_robot_hp",
@@ -87,7 +120,6 @@ private:
             "sub_armors",
             "sub_decision_num",
             "sub_all_robot_location",
-            "get_location",
             "sub_robot_posture",
         };
 
@@ -101,12 +133,13 @@ private:
             "is_friend_ok",
             "is_outpost_ok",
             "get_current_location",
-            "get_robot_location",
             "move_around",
             "print_message",
             "enemy_position_filter",
             "armor_to_goal",
-            "set_posture",
+            "set_posture"
+            // Note: goal_manager, should_reset_observation, is_goal_reached, get_robot_location removed
+            // They will be registered using RegisterRosNode below
         };
 
         // 注册消息更新插件
@@ -123,18 +156,19 @@ private:
         RegisterRosNode(*factory, BT::SharedLibrary::getOSName("send_goal"), params_send_goal);
         RegisterRosNode(*factory, BT::SharedLibrary::getOSName("robot_control"), params_robot_control);
         RegisterRosNode(*factory, BT::SharedLibrary::getOSName("set_posture"), params_set_posture);
-    }
 
-    // 定时器回调（不再使用，由管理器统一tick）
-//    void onTimer() {
-//        tree.tickWhileRunning(std::chrono::milliseconds(10));
-//    }
+        // 注册观察点相关插件（使用共享节点）
+        RegisterRosNode(*factory, BT::SharedLibrary::getOSName("goal_manager"), params_goal_manager);
+        RegisterRosNode(*factory, BT::SharedLibrary::getOSName("should_reset_observation"), params_should_reset);
+        RegisterRosNode(*factory, BT::SharedLibrary::getOSName("is_goal_reached"), params_is_goal_reached);
+        RegisterRosNode(*factory, BT::SharedLibrary::getOSName("get_robot_location"), params_get_robot_location);
+        RegisterRosNode(*factory, BT::SharedLibrary::getOSName("get_location"), params_get_location);
+    }
 
     // 成员变量
     std::string bt_xml_path;                                    // 行为树XML文件路径
     std::shared_ptr<BT::BehaviorTreeFactory> factory;           // 行为树工厂
     std::shared_ptr<BT::Groot2Publisher> publisher;             // Groot2调试发布器
-    // std::shared_ptr<rclcpp::TimerBase> timer_;                // 定时器（此处不再使用）
     std::shared_ptr<BT::Tree> tree_ptr;                         // 行为树对象指针
 };
 

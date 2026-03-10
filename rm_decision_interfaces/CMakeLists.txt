@@ -24,9 +24,13 @@ rosidl_generate_interfaces(${PROJECT_NAME}
   "msg/RFID.msg"
   "msg/Controller.msg"
   "msg/RobotLocation.msg"
- 
+
   "msg/SentryPostureCmd.msg"
   "msg/SentryPostureStatus.msg"
+  "msg/Target.msg"
+  "msg/ObservationPoint.msg"
+  "msg/ObservationPoints.msg"
+  "msg/GoalStatus.msg"
   "srv/SetSentryPosture.srv"
 
   DEPENDENCIES

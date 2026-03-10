@@ -19,7 +19,7 @@ def generate_launch_description():
     
     style_cmd = DeclareLaunchArgument(
             'style',
-            default_value="attack_robot",
+            default_value="observation_enhanced",
             description="选取哪一个进攻防御方式  map1  test0	test test2	rmul2025_01 test3  "
         )
 

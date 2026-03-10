@@ -32,6 +32,7 @@ BT::NodeStatus EnemyPositionFilter::tick()
         // 没有输入数据，如果已有滤波值则继续使用
         if (initialized_) {
             setOutput("filtered_position", filtered_position_);
+            
             return BT::NodeStatus::SUCCESS;
         }
         return BT::NodeStatus::FAILURE;
@@ -101,6 +102,9 @@ BT::NodeStatus EnemyPositionFilter::tick()
 
     // 输出滤波后的位置
     setOutput("filtered_position", filtered_position_);
+    RCLCPP_INFO(rclcpp::get_logger("EnemyPositionFilter"),
+            "Filtered position updated to [%.2f, %.2f]", 
+            filtered_position_.point.x, filtered_position_.point.y);
 
     return BT::NodeStatus::SUCCESS;
 }
