@@ -1,0 +1,196 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  ArmorToGoal Behavior Tree Example
+
+  This tree demonstrates how to use the ArmorToGoalAction node with all its features:
+  - 1.5m offset from enemy target
+  - Confidence-based filtering
+  - Rate limiting to prevent navigation stutter
+  - Close-range handling
+
+  Usage:
+    - target_message: Subscribe to /target_tracking topic from vision system
+    - robot_pose: Current robot position from localization
+    - goal_pose: Output goal for navigation stack
+
+  Key Concepts:
+    - Offset Goal: Robot maintains 1.5m distance from enemy (safe engagement range)
+    - Confidence Check: Rejects low-confidence targets (< 0.3) to avoid chasing ghosts
+    - Rate Limit: Max 10Hz updates (0.1s) to prevent navigation replanning stutter
+    - Close Range: When enemy < 1.5m, robot holds position instead of backing away
+-->
+<root BTCPP_format="4"
+      main_tree_to_execute="armor_to_goal_main">
+
+  <!-- Main Behavior Tree -->
+  <BehaviorTree ID="armor_to_goal_main">
+    <ReactiveSequence name="ArmorTrackingLoop">
+
+      <!-- Step 1: Get current robot pose -->
+      <GetLocation name="GetRobotPose"
+                   topic_name="/odometry"
+                   robot_location="{robot_pose}"/>
+
+      <!-- Step 2: Subscribe to target tracking from vision system -->
+      <SubTargetTopic name="SubscribeTarget"
+                      topic_name="/target_tracking"
+                      target_message="{target_message}"/>
+
+      <!-- Step 3: Transform target to goal with offset -->
+      <ArmorToGoal name="CalculateOffsetGoal"
+                   target_message="{target_message}"
+                   robot_pose="{robot_pose}"
+                   offset_distance="1.5"
+                   min_confidence="0.3"
+                   rate_limit="0.1"
+                   goal_pose="{goal}"/>
+
+      <!-- Step 4: Check if goal is valid before navigating -->
+      <Fallback name="GoalValidation">
+
+        <!-- Goal is valid, navigate to it -->
+        <Sequence name="NavigateToEnemy">
+
+          <!-- Additional check: ensure goal confidence is sufficient -->
+          <CheckGoalConfidence name="VerifyConfidence"
+                               goal_pose="{goal}"
+                               min_confidence="0.3"/>
+
+          <!-- Send navigation goal -->
+          <SendGoal name="NavigateToOffsetGoal"
+                   goal_pose="{goal}"
+                   action_name="/navigate_to_pose"/>
+
+          <!-- Wait for navigation result or target change -->
+          <ReactiveFallback name="WaitOrInterrupt">
+
+            <!-- Navigation succeeded -->
+            <SuccessNode name="NavSuccess"/>
+
+            <!-- Target changed significantly, interrupt navigation -->
+            <Sequence name="InterruptOnTargetChange">
+              <CheckTargetChanged name="TargetChanged"
+                                 old_target="{last_target}"
+                                 new_target="{target_message}"
+                                 threshold="0.5"/>
+              <AbortNavigation name="AbortCurrentNav"
+                             action_name="/navigate_to_pose"/>
+            </Sequence>
+
+          </ReactiveFallback>
+        </Sequence>
+
+        <!-- Goal invalid (low confidence or no target) -->
+        <Sequence name="HandleInvalidGoal">
+          <ResetNavigation name="ResetNavStack"/>
+          <Wait name="WaitForNewTarget" duration="1.0"/>
+        </Sequence>
+      </Fallback>
+
+    </ReactiveSequence>
+  </BehaviorTree>
+
+  <!-- Alternative: Simplified version for basic usage -->
+  <BehaviorTree ID="armor_to_goal_simple">
+    <Sequence>
+      <GetLocation robot_location="{robot_pose}"/>
+      <ArmorToGoal target_message="{target_message}"
+                   robot_pose="{robot_pose}"
+                   goal_pose="{goal}"/>
+      <SendGoal goal_pose="{goal}" action_name="/navigate_to_pose"/>
+    </Sequence>
+  </BehaviorTree>
+
+  <!-- Alternative: Aggressive mode (closer offset, lower confidence threshold) -->
+  <BehaviorTree ID="armor_to_goal_aggressive">
+    <Sequence>
+      <GetLocation robot_location="{robot_pose}"/>
+      <ArmorToGoal target_message="{target_message}"
+                   robot_pose="{robot_pose}"
+                   offset_distance="1.0"
+                   min_confidence="0.2"
+                   rate_limit="0.05"
+                   goal_pose="{goal}"/>
+      <SendGoal goal_pose="{goal}" action_name="/navigate_to_pose"/>
+    </Sequence>
+  </BehaviorTree>
+
+  <!-- Alternative: Conservative mode (farther offset, higher confidence) -->
+  <BehaviorTree ID="armor_to_goal_conservative">
+    <Sequence>
+      <GetLocation robot_location="{robot_pose}"/>
+      <ArmorToGoal target_message="{target_message}"
+                   robot_pose="{robot_pose}"
+                   offset_distance="2.0"
+                   min_confidence="0.5"
+                   rate_limit="0.2"
+                   goal_pose="{goal}"/>
+      <SendGoal goal_pose="{goal}" action_name="/navigate_to_pose"/>
+    </Sequence>
+  </BehaviorTree>
+
+  <!-- Node Models for Groot -->
+  <TreeNodesModel>
+    <Action ID="GetLocation">
+      <input_port name="topic_name" default="/odometry"/>
+      <output_port name="robot_location" default="{robot_pose}"/>
+    </Action>
+
+    <Action ID="SubTargetTopic">
+      <input_port name="topic_name" default="/target_tracking"/>
+      <output_port name="target_message" default="{target_message}"/>
+    </Action>
+
+    <Action ID="ArmorToGoal">
+      <input_port name="target_message" default="{target_message}"/>
+      <input_port name="robot_pose" default="{robot_pose}"/>
+      <input_port name="offset_distance" default="1.5"/>
+      <input_port name="min_confidence" default="0.3"/>
+      <input_port name="rate_limit" default="0.1"/>
+      <output_port name="goal_pose" default="{goal}"/>
+      <description>
+        Calculate offset goal from target position.
+
+        Parameters:
+        - offset_distance: Distance from target (meters). Default 1.5m
+        - min_confidence: Minimum confidence (0.0-1.0). Default 0.3
+        - rate_limit: Min time between updates (seconds). Default 0.1s (10Hz max)
+
+        Behavior:
+        - Places goal between robot and target at offset_distance
+        - If distance &lt; offset_distance, holds position
+        - Returns FAILURE if confidence &lt; min_confidence
+        - Rate limits updates to prevent navigation stutter
+      </description>
+    </Action>
+
+    <Action ID="SendGoal">
+      <input_port name="goal_pose" default="{goal}"/>
+      <input_port name="action_name" default="/navigate_to_pose"/>
+    </Action>
+
+    <Action ID="ResetNavigation">
+      <input_port name="action_name" default="/navigate_to_pose"/>
+    </Action>
+
+    <Action ID="AbortNavigation">
+      <input_port name="action_name" default="/navigate_to_pose"/>
+    </Action>
+
+    <Condition ID="CheckGoalConfidence">
+      <input_port name="goal_pose" default="{goal}"/>
+      <input_port name="min_confidence" default="0.3"/>
+    </Condition>
+
+    <Condition ID="CheckTargetChanged">
+      <input_port name="old_target" default="{last_target}"/>
+      <input_port name="new_target" default="{target_message}"/>
+      <input_port name="threshold" default="0.5"/>
+    </Condition>
+
+    <Action ID="Wait">
+      <input_port name="duration" default="1.0"/>
+    </Action>
+  </TreeNodesModel>
+
+</root>

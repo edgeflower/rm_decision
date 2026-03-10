@@ -11,19 +11,27 @@
 namespace rm_behavior_tree
 {
     /**
-    * @brief 对敌人位置进行滤波的节点
-    *
-    * 使用指数移动平均和异常值检测来平滑敌人位置数据
-    *
-    * @param[in] enemy_position 输入的敌人位置 (armor_interfaces::msg::Target)
-    * @param[out] filtered_position 滤波后的敌人位置 (geometry_msgs::msg::PointStamped)
-    * @param[in] alpha 滤波系数 (0.0-1.0)，越小越平滑，默认0.3
-    * @param[in] max_distance 最大有效距离阈值，超过则视为异常值
-    * @param[in] history_size 历史数据窗口大小，用于异常检测
-    */
+     * @brief 对敌人位置进行滤波的节点 (数据清洗层)
+     *
+     * 职责边界：
+     *   - 只负责平滑坐标和剔除跳变
+     *   - 不关心偏移距离和机器人位置 (由 ArmorToGoal 处理)
+     *   - 透传 confidence, tracking, id 等元数据
+     *
+     * 与 ArmorToGoal 的配合:
+     *   - EnemyPositionFilter 输出完整的 Target 消息
+     *   - ArmorToGoal 接收 "被洗过坐标" 的 Target 进行战术计算
+     *
+     * @param[in] enemy_position 输入的原始目标 (armor_interfaces::msg::Target)
+     * @param[out] filtered_position 滤波后的完整目标 (armor_interfaces::msg::Target)
+     * @param[in] alpha 滤波系数 (0.0-1.0)，默认0.3。调大=更快响应，调小=更平滑
+     * @param[in] max_distance 异常值阈值 (米)，默认1.5 (RoboMaster 3v3)
+     * @param[in] history_size 历史数据窗口大小，用于异常检测
+     * @param[in] zero_threshold 零值判定阈值 (米)，小于此值视为无效检测
+     */
 
-    class EnemyPositionFilter : public BT::SyncActionNode
-    {
+class EnemyPositionFilter : public BT::SyncActionNode
+{
     public:
         EnemyPositionFilter(const std::string& name, const BT::NodeConfig& config);
 
@@ -31,9 +39,13 @@ namespace rm_behavior_tree
         {
             return {
                 BT::InputPort<armor_interfaces::msg::Target>("enemy_position"),
-                BT::OutputPort<geometry_msgs::msg::PointStamped>("filtered_position"),  // 输出滤波后的位置 ，使用PointStamped 而不使用Target是为了简化数据结构，专注于位置部分
+                // CHANGED: Output full Target message instead of PointStamped
+                // This preserves confidence, tracking, id, armors_num, etc.
+                BT::OutputPort<armor_interfaces::msg::Target>("filtered_position"),
                 BT::InputPort<double>("alpha", 0.3, "滤波系数 (0.0-1.0)，默认0.3"),
-                BT::InputPort<double>("max_distance", 10.0, "最大有效距离阈值(米)"),
+                // CHANGED: Default from 10.0m to 1.5m for RoboMaster 3v3
+                // Single frame jump of 10m is definitely misidentification
+                BT::InputPort<double>("max_distance", 1.5, "异常值阈值(米)，默认1.5 (RoboMaster 3v3)"),
                 BT::InputPort<int>("history_size", 5, "历史数据窗口大小"),
                 BT::InputPort<double>("zero_threshold", 0.1, "0值判断阈值(米)，小于此值视为无效检测")
             };
@@ -43,18 +55,24 @@ namespace rm_behavior_tree
         void reset();
 
     private:
-        // 滤波后的位置
-        geometry_msgs::msg::PointStamped filtered_position_;
+        // CHANGED: Store full Target message instead of just PointStamped
+        armor_interfaces::msg::Target filtered_target_;
+
+        // 滤波后的位置 (用于计算，filtered_target_ 包含完整信息)
+        struct FilteredPosition {
+            double x, y;
+            rclcpp::Time last_update;
+        } filtered_position_;
 
         // 指数移动平均滤波器
-        double alpha_ = 0.3;  // 滤波系数
+        double alpha_ = 0.3;  // 滤波系数，0.3 = 平滑响应与实时性的平衡
         bool initialized_ = false;
 
         // 历史数据用于异常检测
         struct PositionHistory {
             rclcpp::Time time;
             double x, y;
-        }; // 移除了z坐标，因为我们主要关注平面位置
+        };
         std::deque<PositionHistory> history_;
         size_t max_history_size_ = 5;
 
@@ -62,7 +80,13 @@ namespace rm_behavior_tree
         double calculateDistance(const PositionHistory& p1, const PositionHistory& p2) const;
         bool isOutlier(const armor_interfaces::msg::Target& pos) const;
         void updateFilteredPosition(const armor_interfaces::msg::Target& new_pos);
+
+        // Helper: Create filtered target with new position but preserved metadata
+        armor_interfaces::msg::Target createFilteredTarget(
+            double x, double y,
+            const armor_interfaces::msg::Target& original);
     };
-}
+
+} // namespace rm_behavior_tree
 
 #endif // RM_BEHAVIOR_TREE__PLUGINS__ACTION__ENEMY_POSITION_FILTER_HPP_
