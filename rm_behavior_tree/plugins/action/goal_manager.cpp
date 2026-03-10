@@ -17,6 +17,8 @@ GoalManagerAction::GoalManagerAction(
     const BT::RosNodeParams & params)
 : BT::RosTopicSubNode<rm_decision_interfaces::msg::ObservationPoints>(name, config, params)
 , all_points_completed_(false)
+, locked_goal_id_(0)
+, locked_goal_score_(0.0)
 {
     // Get parameters from ports if provided, otherwise use defaults
     getInput<double>("lethal_threshold", lethal_threshold_);
@@ -24,17 +26,35 @@ GoalManagerAction::GoalManagerAction(
     getInput<double>("visit_timeout", visit_timeout_);
     getInput<int>("max_retries", max_retries_);
 
+    // Get new enhancement parameters
+    getInput<double>("hysteresis_threshold", hysteresis_threshold_);
+    getInput<double>("arrival_distance", arrival_distance_);
+    getInput<double>("arrival_speed", arrival_speed_);
+    getInput<double>("stay_duration", stay_duration_);
+    getInput<double>("min_exclusion_radius", min_exclusion_radius_);
+
     // Set defaults if not provided
     if (lethal_threshold_ <= 0) lethal_threshold_ = 252.0;
     if (high_cost_threshold_ <= 0) high_cost_threshold_ = 200.0;
     if (visit_timeout_ <= 0) visit_timeout_ = 30.0;
     if (max_retries_ < 0) max_retries_ = 2;
+    if (hysteresis_threshold_ <= 0) hysteresis_threshold_ = 0.3;
+    if (arrival_distance_ <= 0) arrival_distance_ = 0.5;
+    if (arrival_speed_ <= 0) arrival_speed_ = 0.1;
+    if (stay_duration_ <= 0) stay_duration_ = 1.5;
+    if (min_exclusion_radius_ <= 0) min_exclusion_radius_ = 1.0;
 
     RCLCPP_INFO(node_->get_logger(), "GoalManagerAction initialized:");
     RCLCPP_INFO(node_->get_logger(), "  lethal_threshold: %.1f", lethal_threshold_);
     RCLCPP_INFO(node_->get_logger(), "  high_cost_threshold: %.1f", high_cost_threshold_);
     RCLCPP_INFO(node_->get_logger(), "  visit_timeout: %.1f seconds", visit_timeout_);
     RCLCPP_INFO(node_->get_logger(), "  max_retries: %d", max_retries_);
+    RCLCPP_INFO(node_->get_logger(), "Enhanced features:");
+    RCLCPP_INFO(node_->get_logger(), "  hysteresis_threshold: %.1f%%", hysteresis_threshold_ * 100);
+    RCLCPP_INFO(node_->get_logger(), "  arrival_distance: %.2f m", arrival_distance_);
+    RCLCPP_INFO(node_->get_logger(), "  arrival_speed: %.2f m/s", arrival_speed_);
+    RCLCPP_INFO(node_->get_logger(), "  stay_duration: %.1f s", stay_duration_);
+    RCLCPP_INFO(node_->get_logger(), "  min_exclusion_radius: %.2f m", min_exclusion_radius_);
 }
 
 BT::NodeStatus GoalManagerAction::onTick(
@@ -49,12 +69,17 @@ BT::NodeStatus GoalManagerAction::onTick(
 
     RCLCPP_INFO(node_->get_logger(), "Received %zu observation points", last_msg->points.size());
 
-    // Get robot pose from input port
+    // Get robot pose and speed from input port
     geometry_msgs::msg::TransformStamped robot_pose;
+    double current_speed = 0.0;
+
     if (!getInput<geometry_msgs::msg::TransformStamped>("robot_pose", robot_pose)) {
         RCLCPP_ERROR(node_->get_logger(), "Failed to get robot_pose from input port");
         return BT::NodeStatus::FAILURE;
     }
+
+    // Try to get current speed (optional)
+    getInput<double>("robot_speed", current_speed);
 
     // Check if reset is requested
     bool reset_requested = false;
@@ -91,11 +116,31 @@ BT::NodeStatus GoalManagerAction::onTick(
     // Check for visiting timeouts and update statuses
     checkVisitingTimeouts();
 
+    // Check semantic arrival for currently locked goal (before checking timeouts)
+    if (locked_goal_id_ != 0) {
+        auto visit_it = visit_info_map_.find(locked_goal_id_);
+        if (visit_it != visit_info_map_.end() && visit_it->second.arrival_detected) {
+            // Check if stay duration is complete
+            if (checkStayCompletion(locked_goal_id_)) {
+                RCLCPP_INFO(node_->get_logger(), "Stay duration complete for locked goal ID %u, marking as DONE",
+                            locked_goal_id_);
+                updateGoalStatus(locked_goal_id_, DONE);
+                resetFailCount(locked_goal_id_);  // Reset failure count on successful completion
+                releaseGoalLock();
+            }
+        } else {
+            // Check for semantic arrival
+            if (checkSemanticArrival(locked_goal_id_, robot_pose, current_speed)) {
+                RCLCPP_INFO(node_->get_logger(), "Semantic arrival detected for locked goal ID %u", locked_goal_id_);
+            }
+        }
+    }
+
     // Check if all points are completed
     checkAllPointsCompleted();
 
-    // Try to find nearest IDLE point
-    uint32_t best_id = findNearestIdlePoint(robot_pose);
+    // Try to find best point with hysteresis (soft lock)
+    uint32_t best_id = findBestPointWithHysteresis(robot_pose);
 
     // If no IDLE points, check if we can retry blocked points
     if (best_id == 0) {
@@ -164,6 +209,14 @@ BT::NodeStatus GoalManagerAction::onTick(
                     best_id, static_cast<int>(cost_status), cost_value);
         updateGoalStatus(best_id, BLOCKED);
 
+        // Increment failure count for penalty mechanism
+        incrementFailCount(best_id);
+
+        // Release goal lock when blocked
+        if (locked_goal_id_ == best_id) {
+            releaseGoalLock();
+        }
+
         // Try to retry if max retries not reached
         if (!retryBlockedPoint(best_id)) {
             RCLCPP_ERROR(node_->get_logger(), "Point ID %u exceeded max retries, skipping", best_id);
@@ -184,6 +237,13 @@ BT::NodeStatus GoalManagerAction::onTick(
     visit_info_map_[best_id].point_id = best_id;
     visit_info_map_[best_id].visit_start_time = node_->now();
     visit_info_map_[best_id].max_duration_seconds = visit_timeout_;
+    visit_info_map_[best_id].arrival_detected = false;
+
+    // Lock this goal (soft lock with hysteresis)
+    locked_goal_id_ = best_id;
+    locked_goal_score_ = it->second.score;
+
+    RCLCPP_DEBUG(node_->get_logger(), "Goal ID %u locked with score %.2f", best_id, locked_goal_score_);
 
     // Count IDLE and DONE points
     uint32_t idle_count = 0, done_count = 0;
@@ -192,12 +252,22 @@ BT::NodeStatus GoalManagerAction::onTick(
         if (status_pair.second.status == DONE) done_count++;
     }
 
+    // Prepare goal statuses for Blackboard sharing
+    std::vector<GoalStatusEntry> goal_statuses;
+    for (const auto & status_pair : goal_status_list_) {
+        GoalStatusEntry entry;
+        entry.point_id = status_pair.first;
+        entry.status = static_cast<uint8_t>(status_pair.second.status);
+        goal_statuses.push_back(entry);
+    }
+
     // Output results
     setOutput("best_goal", best_goal);
     setOutput("selected_id", best_id);
     setOutput("should_reset", false);
     setOutput("idle_count", idle_count);
     setOutput("done_count", done_count);
+    setOutput("goal_statuses", goal_statuses);
 
     RCLCPP_INFO(node_->get_logger(), "Selected goal ID %u at (%.2f, %.2f) with score %.2f, cost: %.2f",
                 best_id, best_goal.pose.position.x, best_goal.pose.position.y,
@@ -226,6 +296,11 @@ uint32_t GoalManagerAction::findNearestIdlePoint(
             continue;
         }
 
+        // Apply dynamic proximity exclusion
+        if (isPointTooClose(robot_pose, it->second)) {
+            continue;
+        }
+
         // Calculate distance
         double dist = euclideanDistance(robot_pose, it->second);
 
@@ -235,7 +310,7 @@ uint32_t GoalManagerAction::findNearestIdlePoint(
             best_id = status.point_id;
         }
     }
-    RCLCPP_INFO(node_->get_logger(), "Nearest IDLE point: ID %u, distance %.2f", best_id, min_dist);
+    RCLCPP_DEBUG(node_->get_logger(), "Nearest IDLE point: ID %u, distance %.2f", best_id, min_dist);
 
     return best_id;
 }
@@ -333,6 +408,7 @@ void GoalManagerAction::checkVisitingTimeouts()
                     RCLCPP_INFO(node_->get_logger(), "Point ID %u visiting timeout (%.1f s), marking as DONE",
                                 point_id, elapsed);
                     updateGoalStatus(point_id, DONE);
+                    resetFailCount(point_id);  // Reset failure count on successful completion
                 }
             }
         }
@@ -403,7 +479,16 @@ void GoalManagerAction::resetAllPoints()
     // Reset visit info
     for (auto & visit_pair : visit_info_map_) {
         visit_pair.second.retry_count = 0;
+        visit_pair.second.arrival_detected = false;
     }
+
+    // Reset failure counts
+    for (auto & fail_pair : fail_count_map_) {
+        fail_pair.second = 0;
+    }
+
+    // Release goal lock
+    releaseGoalLock();
 
     all_points_completed_ = false;
 
@@ -457,6 +542,221 @@ std::vector<uint32_t> GoalManagerAction::sortPointsByNearestNeighbor(
     }
 
     return sorted_ids;
+}
+
+// ============================================================================
+// Soft Lock / Hysteresis Implementation
+// ============================================================================
+
+uint32_t GoalManagerAction::findBestPointWithHysteresis(
+    const geometry_msgs::msg::TransformStamped & robot_pose)
+{
+    // If we have a locked goal, check if it's still valid
+    if (locked_goal_id_ != 0) {
+        auto status_it = goal_status_list_.find(locked_goal_id_);
+        if (status_it != goal_status_list_.end() && status_it->second.status == VISITING) {
+            // Locked goal is still active, keep using it
+            RCLCPP_DEBUG(node_->get_logger(), "Keeping locked goal ID %u (hysteresis active)", locked_goal_id_);
+            return locked_goal_id_;
+        } else {
+            // Locked goal is no longer VISITING (DONE/BLOCKED), release lock
+            RCLCPP_DEBUG(node_->get_logger(), "Releasing lock on goal ID %u (status: %d)",
+                        locked_goal_id_, status_it != goal_status_list_.end() ? status_it->second.status : -1);
+            releaseGoalLock();
+        }
+    }
+
+    // No locked goal, find best candidate with enhanced scoring
+    double best_score = -1.0;
+    double best_distance = std::numeric_limits<double>::max();
+    uint32_t best_id = 0;
+
+    for (const auto & status_pair : goal_status_list_) {
+        const auto & status = status_pair.second;
+
+        // Only consider IDLE points
+        if (status.status != IDLE) {
+            continue;
+        }
+
+        // Find corresponding observation point
+        auto it = observation_points_.find(status.point_id);
+        if (it == observation_points_.end()) {
+            continue;
+        }
+
+        // Apply dynamic proximity exclusion
+        if (isPointTooClose(robot_pose, it->second)) {
+            continue;
+        }
+
+        // Calculate distance
+        double dist = euclideanDistance(robot_pose, it->second);
+
+        // Combined score: prioritize observation score, then distance
+        // Normalize distance (assume max meaningful distance is 10m)
+        double normalized_distance = std::min(dist / 10.0, 1.0);
+        double distance_score = 1.0 - normalized_distance;  // Closer is better
+
+        // Final score: 70% observation score, 30% distance
+        double combined_score = 0.7 * it->second.score + 0.3 * distance_score;
+
+        // Apply failure penalty
+        combined_score = getPenaltyScore(status.point_id, combined_score);
+
+        // Update best if score is better, or if score is similar but closer
+        if (combined_score > best_score ||
+            (std::abs(combined_score - best_score) < 0.05 && dist < best_distance)) {
+            best_score = combined_score;
+            best_distance = dist;
+            best_id = status.point_id;
+        }
+    }
+
+    if (best_id != 0) {
+        RCLCPP_DEBUG(node_->get_logger(), "Selected new candidate ID %u (score: %.2f, distance: %.2f)",
+                    best_id, best_score, best_distance);
+    }
+
+    return best_id;
+}
+
+bool GoalManagerAction::shouldSwitchGoal(uint32_t new_id, double new_score)
+{
+    if (locked_goal_id_ == 0) {
+        return true;  // No locked goal, always switch
+    }
+
+    // Calculate score improvement
+    double score_improvement = (new_score - locked_goal_score_) / (locked_goal_score_ + 1e-6);
+
+    // Only switch if improvement exceeds hysteresis threshold
+    if (score_improvement >= hysteresis_threshold_) {
+        RCLCPP_INFO(node_->get_logger(), "Switching goal: %u -> %u (improvement: %.1f%%, threshold: %.1f%%)",
+                    locked_goal_id_, new_id, score_improvement * 100, hysteresis_threshold_ * 100);
+        return true;
+    }
+
+    return false;
+}
+
+void GoalManagerAction::releaseGoalLock()
+{
+    if (locked_goal_id_ != 0) {
+        RCLCPP_DEBUG(node_->get_logger(), "Releasing goal lock on ID %u", locked_goal_id_);
+        locked_goal_id_ = 0;
+        locked_goal_score_ = 0.0;
+    }
+}
+
+// ============================================================================
+// Semantic Arrival Implementation
+// ============================================================================
+
+bool GoalManagerAction::checkSemanticArrival(
+    uint32_t point_id,
+    const geometry_msgs::msg::TransformStamped & robot_pose,
+    double current_speed)
+{
+    auto visit_it = visit_info_map_.find(point_id);
+    if (visit_it == visit_info_map_.end() || visit_it->second.arrival_detected) {
+        return false;
+    }
+
+    auto point_it = observation_points_.find(point_id);
+    if (point_it == observation_points_.end()) {
+        return false;
+    }
+
+    // Calculate distance to goal
+    double dist = euclideanDistance(robot_pose, point_it->second);
+
+    // Check arrival conditions: close enough AND moving slowly
+    if (dist <= arrival_distance_ && current_speed <= arrival_speed_) {
+        visit_it->second.arrival_detected = true;
+        visit_it->second.arrival_time = node_->now();
+        RCLCPP_INFO(node_->get_logger(),
+                    "Semantic arrival at goal ID %u: distance=%.2fm (threshold=%.2fm), speed=%.2fm/s (threshold=%.2fm/s)",
+                    point_id, dist, arrival_distance_, current_speed, arrival_speed_);
+        return true;
+    }
+
+    return false;
+}
+
+bool GoalManagerAction::checkStayCompletion(uint32_t point_id)
+{
+    auto visit_it = visit_info_map_.find(point_id);
+    if (visit_it == visit_info_map_.end() || !visit_it->second.arrival_detected) {
+        return false;
+    }
+
+    auto elapsed = (node_->now() - visit_it->second.arrival_time).seconds();
+
+    if (elapsed >= stay_duration_) {
+        RCLCPP_DEBUG(node_->get_logger(), "Stay duration complete for goal ID %u: %.2fs / %.1fs",
+                    point_id, elapsed, stay_duration_);
+        return true;
+    }
+
+    return false;
+}
+
+// ============================================================================
+// Dynamic Proximity Exclusion Implementation
+// ============================================================================
+
+bool GoalManagerAction::isPointTooClose(
+    const geometry_msgs::msg::TransformStamped & robot_pose,
+    const rm_decision_interfaces::msg::ObservationPoint & point)
+{
+    double dist = euclideanDistance(robot_pose, point);
+
+    if (dist < min_exclusion_radius_) {
+        RCLCPP_DEBUG(node_->get_logger(), "Excluding point ID %u: too close (%.2fm < %.2fm)",
+                    point.point_id, dist, min_exclusion_radius_);
+        return true;
+    }
+
+    return false;
+}
+
+// ============================================================================
+// Failure Penalty Mechanism Implementation
+// ============================================================================
+
+double GoalManagerAction::getPenaltyScore(uint32_t point_id, double raw_score)
+{
+    auto fail_it = fail_count_map_.find(point_id);
+    if (fail_it == fail_count_map_.end() || fail_it->second == 0) {
+        return raw_score;  // No penalty
+    }
+
+    int fail_count = fail_it->second;
+    // Apply exponential penalty: score *= (0.5^fail_count)
+    double penalty_factor = std::pow(0.5, fail_count);
+    double penalized_score = raw_score * penalty_factor;
+
+    RCLCPP_DEBUG(node_->get_logger(), "Point ID %u: raw_score=%.2f, fail_count=%d, penalty_factor=%.2f, penalized_score=%.2f",
+                point_id, raw_score, fail_count, penalty_factor, penalized_score);
+
+    return penalized_score;
+}
+
+void GoalManagerAction::incrementFailCount(uint32_t point_id)
+{
+    fail_count_map_[point_id]++;
+    RCLCPP_DEBUG(node_->get_logger(), "Point ID %u: fail_count incremented to %d",
+                point_id, fail_count_map_[point_id]);
+}
+
+void GoalManagerAction::resetFailCount(uint32_t point_id)
+{
+    auto fail_it = fail_count_map_.find(point_id);
+    if (fail_it != fail_count_map_.end()) {
+        fail_it->second = 0;
+        RCLCPP_DEBUG(node_->get_logger(), "Point ID %u: fail_count reset", point_id);
+    }
 }
 
 } // namespace rm_behavior_tree

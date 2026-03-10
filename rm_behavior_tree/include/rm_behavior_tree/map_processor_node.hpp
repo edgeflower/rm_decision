@@ -30,10 +30,31 @@ private:
     int ray_count_;
     double update_rate_;
 
+    // Distance transform parameters
+    double min_distance_threshold_;
+    double distance_weight_;
+
+    // NMS parameters
+    double nms_buffer_radius_;
+    bool enable_nms_;
+
+    // Unknown region handling
+    bool treat_unknown_as_obstacle_;
+
+    // Performance parameters
+    bool use_bresenham_ray_casting_;
+
+    // Ray coverage parameters
+    double min_coverage_ratio_;
+
     // Map data
     nav_msgs::msg::OccupancyGrid::SharedPtr current_map_;
     cv::Mat processed_map_;
+    cv::Mat distance_map_;
     bool first_map_received_;
+
+    // Map change detection
+    rclcpp::Time last_map_timestamp_;
 
     // Callbacks
     void mapCallback(const nav_msgs::msg::OccupancyGrid::SharedPtr msg);
@@ -49,7 +70,20 @@ private:
     double scoreObservationPoint(const cv::Mat & map, const nav_msgs::msg::MapMetaData & info, float x, float y);
     double castRayOnGrid(const cv::Mat & map, const nav_msgs::msg::MapMetaData & info,
                          float start_x, float start_y, double angle, double max_range);
+    double castRayBresenham(const cv::Mat & map, const nav_msgs::msg::MapMetaData & info,
+                            int start_grid_x, int start_grid_y, double angle, double max_range);
     bool isObstacle(const cv::Mat & map, int grid_x, int grid_y);
+
+    // Distance transform functions
+    cv::Mat computeDistanceTransform(const cv::Mat & binary_map);
+    double getDistanceScore(int grid_x, int grid_y);
+
+    // NMS function
+    std::vector<size_t> applyNMS(const std::vector<cv::Point2f>& points,
+                                 const std::vector<double>& scores);
+
+    // Map change detection
+    bool detectMapUpdate(const nav_msgs::msg::OccupancyGrid::SharedPtr map);
 
     // Utility functions
     bool worldToMap(const nav_msgs::msg::MapMetaData & info, double wx, double wy,

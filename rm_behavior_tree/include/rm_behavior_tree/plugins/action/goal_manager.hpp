@@ -27,15 +27,32 @@ enum GoalStatusEnum : uint8_t {
     RETRYING = 4
 };
 
+// Goal status structure for Blackboard sharing (must match IsGoalReachedCondition)
+struct GoalStatusEntry {
+    uint32_t point_id;
+    uint8_t status;
+
+    GoalStatusEntry() : point_id(0), status(IDLE) {}
+    GoalStatusEntry(uint32_t id, uint8_t s) : point_id(id), status(s) {}
+};
+
 // Point visit tracking
 struct PointVisitInfo {
     uint32_t point_id;
     rclcpp::Time visit_start_time;
+    rclcpp::Time arrival_time;      // Time when semantic arrival was detected
     double max_duration_seconds;
     int retry_count;
     int max_retries;
+    bool arrival_detected;          // Flag for semantic arrival detection
 
-    PointVisitInfo() : point_id(0), max_duration_seconds(30.0), retry_count(0), max_retries(2) {}
+    PointVisitInfo()
+        : point_id(0)
+        , max_duration_seconds(30.0)
+        , retry_count(0)
+        , max_retries(2)
+        , arrival_detected(false)
+    {}
 };
 
 // GoalManagerAction now inherits from RosTopicSubNode
@@ -58,11 +75,18 @@ public:
             BT::InputPort<double>("visit_timeout", 30.0, "Max time to mark point as DONE (seconds)"),
             BT::InputPort<int>("max_retries", 2, "Maximum retry attempts for blocked points"),
             BT::InputPort<bool>("reset_requested", false, "Request to reset all points to IDLE"),
+            BT::InputPort<double>("hysteresis_threshold", 0.3, "Score improvement threshold for switching targets (0.0-1.0)"),
+            BT::InputPort<double>("arrival_distance", 0.5, "Distance threshold for semantic arrival (meters)"),
+            BT::InputPort<double>("arrival_speed", 0.1, "Speed threshold for semantic arrival (m/s)"),
+            BT::InputPort<double>("stay_duration", 1.5, "Time to wait at goal after arrival (seconds)"),
+            BT::InputPort<double>("min_exclusion_radius", 1.0, "Minimum radius to exclude near points (meters)"),
+            BT::InputPort<double>("robot_speed", 0.0, "Current robot speed for semantic arrival (m/s)"),
             BT::OutputPort<geometry_msgs::msg::PoseStamped>("best_goal"),
             BT::OutputPort<uint32_t>("selected_id"),
             BT::OutputPort<bool>("should_reset", "True if all points completed"),
             BT::OutputPort<uint32_t>("idle_count", "Number of IDLE points remaining"),
-            BT::OutputPort<uint32_t>("done_count", "Number of DONE points")
+            BT::OutputPort<uint32_t>("done_count", "Number of DONE points"),
+            BT::OutputPort<std::vector<GoalStatusEntry>>("goal_statuses", "All goal statuses for sharing with BT")
         };
         return BT::RosTopicSubNode<rm_decision_interfaces::msg::ObservationPoints>::providedBasicPorts(custom_ports);
     }
@@ -84,6 +108,7 @@ private:
     std::map<uint32_t, rm_decision_interfaces::msg::ObservationPoint> observation_points_;
     std::map<uint32_t, rm_decision_interfaces::msg::GoalStatus> goal_status_list_;
     std::map<uint32_t, PointVisitInfo> visit_info_map_;
+    std::map<uint32_t, int> fail_count_map_;  // Failure penalty tracking
     mutable std::mutex data_mutex_;
 
     // Parameters
@@ -93,11 +118,44 @@ private:
     int max_retries_;
     bool all_points_completed_;
 
+    // Soft lock / Hysteresis parameters
+    double hysteresis_threshold_;
+    uint32_t locked_goal_id_;          // Currently locked goal (0 = no lock)
+    double locked_goal_score_;         // Score of locked goal for comparison
+
+    // Semantic arrival parameters
+    double arrival_distance_;
+    double arrival_speed_;
+    double stay_duration_;
+
+    // Dynamic proximity exclusion
+    double min_exclusion_radius_;
+
     // Helper functions
     uint32_t findNearestIdlePoint(const geometry_msgs::msg::TransformStamped & robot_pose);
     uint32_t findNearestPointConsideringRetry(const geometry_msgs::msg::TransformStamped & robot_pose);
     double euclideanDistance(const geometry_msgs::msg::TransformStamped & pose1,
                               const rm_decision_interfaces::msg::ObservationPoint & point2);
+
+    // Soft lock / Hysteresis functions
+    uint32_t findBestPointWithHysteresis(const geometry_msgs::msg::TransformStamped & robot_pose);
+    bool shouldSwitchGoal(uint32_t new_id, double new_score);
+    void releaseGoalLock();
+
+    // Semantic arrival functions
+    bool checkSemanticArrival(uint32_t point_id,
+                              const geometry_msgs::msg::TransformStamped & robot_pose,
+                              double current_speed);
+    bool checkStayCompletion(uint32_t point_id);
+
+    // Dynamic proximity exclusion
+    bool isPointTooClose(const geometry_msgs::msg::TransformStamped & robot_pose,
+                         const rm_decision_interfaces::msg::ObservationPoint & point);
+
+    // Failure penalty
+    double getPenaltyScore(uint32_t point_id, double raw_score);
+    void incrementFailCount(uint32_t point_id);
+    void resetFailCount(uint32_t point_id);
 
     // Enhanced costmap checking with delay logic
     enum CostmapStatus { REACHABLE, HIGH_COST, LETHAL, OUT_OF_BOUNDS };
