@@ -168,7 +168,7 @@
     </Action>
     <Action ID="SendGoal">
       <input_port name="goal_pose"
-                  default="{goal}"/>
+                  default="{best_goal}"/>
       <input_port name="action_name"
                   default="/navigate_to_pose"/>
       <input_port name="current_goal_id"

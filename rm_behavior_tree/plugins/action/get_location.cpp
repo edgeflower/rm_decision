@@ -17,6 +17,13 @@ GetLocationAction::GetLocationAction(
     const std::string& name, const BT::NodeConfig& conf, const BT::RosNodeParams& params)
     : BT::RosTopicSubNode<nav_msgs::msg::Odometry>(name, conf, params)
 {
+    // Log the configured topic for debugging
+    std::string configured_topic;
+    if (getInput("topic_name", configured_topic)) {
+        RCLCPP_INFO(node_->get_logger(), "[GetLocation] Subscribed to topic: %s", configured_topic.c_str());
+    } else {
+        RCLCPP_WARN(node_->get_logger(), "[GetLocation] No topic_name configured");
+    }
 }
 
 BT::NodeStatus GetLocationAction::onTick(
@@ -37,7 +44,7 @@ BT::NodeStatus GetLocationAction::onTick(
         robot_location.pose.position.x = last_msg->pose.pose.position.x;
         robot_location.pose.position.y = last_msg->pose.pose.position.y;
         robot_location.pose.position.z = 0.0;
-        
+
 
         setOutput("robot_location", robot_location);
 
@@ -46,7 +53,13 @@ BT::NodeStatus GetLocationAction::onTick(
 
         return BT::NodeStatus::SUCCESS;
     } else {
-        RCLCPP_WARN(logger(), "[GetLocation] Waiting for /odometry message...");
+        // Dynamic warning: show actual topic name instead of hard-coded "/odometry"
+        std::string topic_name;
+        getInput("topic_name", topic_name);
+        if (topic_name.empty()) {
+            topic_name = "(unknown)";
+        }
+        RCLCPP_WARN(logger(), "[GetLocation] Waiting for %s message...", topic_name.c_str());
         return BT::NodeStatus::FAILURE;
     }
 }

@@ -21,6 +21,7 @@ GoalManagerAction::GoalManagerAction(
 , locked_goal_score_(0.0)
 , last_completed_point_id_(0)
 , completed_point_cooldown_(10.0)
+, skipped_recovery_time_(30.0)
 {
     // Get parameters from ports if provided, otherwise use defaults
     getInput<double>("lethal_threshold", lethal_threshold_);
@@ -36,6 +37,7 @@ GoalManagerAction::GoalManagerAction(
     getInput<double>("min_exclusion_radius", min_exclusion_radius_);
     getInput<double>("auto_reset_cooldown", auto_reset_cooldown_);
     getInput<double>("completed_point_cooldown", completed_point_cooldown_);
+    getInput<double>("skipped_recovery_time", skipped_recovery_time_);
 
     // Set defaults if not provided
     if (lethal_threshold_ <= 0) lethal_threshold_ = 252.0;
@@ -49,6 +51,7 @@ GoalManagerAction::GoalManagerAction(
     if (min_exclusion_radius_ <= 0) min_exclusion_radius_ = 1.0;
     if (auto_reset_cooldown_ <= 0) auto_reset_cooldown_ = 5.0;
     if (completed_point_cooldown_ <= 0) completed_point_cooldown_ = 10.0;
+    if (skipped_recovery_time_ <= 0) skipped_recovery_time_ = 30.0;
 
     RCLCPP_INFO(node_->get_logger(), "GoalManagerAction initialized:");
     RCLCPP_INFO(node_->get_logger(), "  lethal_threshold: %.1f", lethal_threshold_);
@@ -63,6 +66,7 @@ GoalManagerAction::GoalManagerAction(
     RCLCPP_INFO(node_->get_logger(), "  min_exclusion_radius: %.2f m", min_exclusion_radius_);
     RCLCPP_INFO(node_->get_logger(), "  auto_reset_cooldown: %.1f s", auto_reset_cooldown_);
     RCLCPP_INFO(node_->get_logger(), "  completed_point_cooldown: %.1f s", completed_point_cooldown_);
+    RCLCPP_INFO(node_->get_logger(), "  skipped_recovery_time: %.1f s", skipped_recovery_time_);
 }
 
 BT::NodeStatus GoalManagerAction::onTick(
@@ -80,7 +84,7 @@ BT::NodeStatus GoalManagerAction::onTick(
     return BT::NodeStatus::FAILURE;
 }
 
-    RCLCPP_INFO(node_->get_logger(), "Received %zu observation points", last_msg->points.size());
+    RCLCPP_DEBUG(node_->get_logger(), "Received %zu observation points", last_msg->points.size());
 
     // ========== 握手机制：优先级最高 ==========
     // 在任何其他检测之前，先检查 SendGoal 是否报告了到达
@@ -95,7 +99,32 @@ BT::NodeStatus GoalManagerAction::onTick(
     if (reached_goal_id != SystemGoalID::SIGNAL_IDLE) {
         bool should_clear_signal = true;  // 默认清空信号
 
-        if (reached_goal_id > 0) {
+        // ========== 导航失败信号：负数 < -1000 ==========
+        // 格式：-(1000 + point_id)，例如：点5失败 → -1005
+        if (reached_goal_id < -1000) {
+            uint32_t failed_point_id = -reached_goal_id - 1000;
+
+            if (locked_goal_id_ != 0 && failed_point_id == locked_goal_id_) {
+                RCLCPP_WARN(node_->get_logger(),
+                           "🤝 Handshake: navigation failed for point %u, marking as BLOCKED",
+                           locked_goal_id_);
+
+                updateGoalStatus(locked_goal_id_, BLOCKED);
+                incrementFailCount(locked_goal_id_);
+                releaseGoalLock();
+
+            } else if (locked_goal_id_ == 0) {
+                RCLCPP_WARN(node_->get_logger(),
+                           "Handshake: received failure signal for point %u but no goal is locked, clearing",
+                           failed_point_id);
+            } else {
+                RCLCPP_DEBUG(node_->get_logger(),
+                            "Handshake: expired failure signal (ID=%u vs locked=%u), ignoring",
+                            failed_point_id, locked_goal_id_);
+                should_clear_signal = false;
+            }
+        }
+        else if (reached_goal_id > 0) {
             // ========== 正数 ID：巡逻点握手 ==========
             if (locked_goal_id_ != 0 && static_cast<uint32_t>(reached_goal_id) == locked_goal_id_) {
                 RCLCPP_INFO(node_->get_logger(),
@@ -200,10 +229,17 @@ BT::NodeStatus GoalManagerAction::onTick(
         }
     }
 
-    RCLCPP_INFO(node_->get_logger(), "Total observation points stored: %zu", observation_points_.size());
+    RCLCPP_DEBUG(node_->get_logger(), "Total observation points stored: %zu", observation_points_.size());
 
     // Check for visiting timeouts and update statuses
+    RCLCPP_DEBUG(node_->get_logger(), "Checking visiting timeouts...");
     checkVisitingTimeouts();
+    RCLCPP_DEBUG(node_->get_logger(), "Visiting timeouts checked");
+
+    // Check for SKIPPED points recovery
+    RCLCPP_DEBUG(node_->get_logger(), "Checking SKIPPED points for recovery...");
+    checkSkippedRecovery();
+    RCLCPP_DEBUG(node_->get_logger(), "SKIPPED recovery checked, finding best point...");
 
     // ========== 语义到达检测已禁用 ==========
     // 原因：握手机制（基于 nav2 导航结果）更可靠，避免两套机制竞争
@@ -227,11 +263,16 @@ BT::NodeStatus GoalManagerAction::onTick(
     checkAllPointsCompleted();
 
     // Try to find best point with hysteresis (soft lock)
+    RCLCPP_DEBUG(node_->get_logger(), "Finding best point with hysteresis... (robot_pose: %.2f, %.2f)",
+                robot_pose.pose.position.x, robot_pose.pose.position.y);
     uint32_t best_id = findBestPointWithHysteresis(robot_pose);
+    RCLCPP_DEBUG(node_->get_logger(), "Best ID from hysteresis: %u", best_id);
 
     // If no IDLE points, check if we can retry blocked points
     if (best_id == 0) {
+        RCLCPP_DEBUG(node_->get_logger(), "No IDLE points found, checking retry candidates...");
         best_id = findNearestPointConsideringRetry(robot_pose);
+        RCLCPP_DEBUG(node_->get_logger(), "Best ID from retry: %u", best_id);
     }
 
     // Handle case when no points are available
@@ -255,6 +296,11 @@ BT::NodeStatus GoalManagerAction::onTick(
 
         // 自动重置所有点为 IDLE
         resetAllPoints();
+
+        // 🔄 清除冷却惩罚，允许新一轮巡逻自由选择目标
+        // (自动重置意味着新的一轮开始，不应该受上一轮的冷却限制)
+        last_completed_point_id_ = 0;
+        RCLCPP_DEBUG(node_->get_logger(), "Cooldown cleared after auto-reset for new patrol round");
 
         // 重置后重新尝试选择目标
         best_id = findBestPointWithHysteresis(robot_pose);
@@ -291,9 +337,11 @@ BT::NodeStatus GoalManagerAction::onTick(
 
         // 死锁条件：
         // 1. 没有 IDLE 点
-        // 2. 有 BLOCKED 点（所有点都不可达）
+        // 2. 有 BLOCKED 或 SKIPPED 点（所有点都不可达或被跳过）
         // 3. 或者有 VISITING 点且有 DONE 点（说明某些点已完成，但当前点卡住了）
-        bool is_deadlock = (idle_count == 0) && (blocked_count > 0 || (visiting_count > 0 && done_count > 0));
+        bool is_deadlock = (idle_count == 0) &&
+                          (blocked_count > 0 || skipped_count > 0 ||
+                           (visiting_count > 0 && done_count > 0));
 
         // 只有在冷却时间过后才执行自动重置
         if (is_deadlock && cooldown_elapsed >= auto_reset_cooldown_) {
@@ -309,6 +357,11 @@ BT::NodeStatus GoalManagerAction::onTick(
                 }
             }
             releaseGoalLock();
+
+            // 🔄 清除冷却惩罚，打破死锁循环
+            // (死锁重置意味着异常恢复，不应该受冷却限制)
+            last_completed_point_id_ = 0;
+            RCLCPP_DEBUG(node_->get_logger(), "Cooldown cleared after deadlock reset");
 
             // 更新上次重置时间
             last_auto_reset_time_ = current_time;
@@ -437,7 +490,6 @@ BT::NodeStatus GoalManagerAction::onTick(
                 best_id, best_goal.pose.position.x, best_goal.pose.position.y,
                 it->second.score, cost_value);
 
-    RCLCPP_INFO(node_->get_logger(), "✅ GoalManager: Returning SUCCESS, next node (SendGoal) should execute now");
     return BT::NodeStatus::SUCCESS;
 }
 
@@ -559,6 +611,9 @@ void GoalManagerAction::checkVisitingTimeouts()
 {
     auto current_time = node_->now();
 
+    // 快速失败阈值：如果在这个时间内超时，认为是导航失败而不是超时
+    const double QUICK_FAILURE_THRESHOLD = 5.0;  // 5秒
+
     for (auto & status_pair : goal_status_list_) {
         uint32_t point_id = status_pair.first;
         auto & status = status_pair.second;
@@ -570,13 +625,69 @@ void GoalManagerAction::checkVisitingTimeouts()
                 auto elapsed = (current_time - visit_it->second.visit_start_time).seconds();
 
                 if (elapsed > visit_it->second.max_duration_seconds) {
-                    RCLCPP_INFO(node_->get_logger(), "Point ID %u visiting timeout (%.1f s), marking as DONE",
-                                point_id, elapsed);
-                    updateGoalStatus(point_id, DONE);
-                    resetFailCount(point_id);  // Reset failure count on successful completion
+                    // 区分快速失败和正常超时
+                    if (elapsed < QUICK_FAILURE_THRESHOLD) {
+                        // 快速失败：可能是导航不可达（LETHAL）或路径规划失败
+                        RCLCPP_WARN(node_->get_logger(),
+                                   "🚫 Point ID %u failed quickly (%.1f s < %.1f s threshold), likely unreachable. Marking as BLOCKED instead of DONE",
+                                   point_id, elapsed, QUICK_FAILURE_THRESHOLD);
+                        updateGoalStatus(point_id, BLOCKED);
+                        incrementFailCount(point_id);  // 增加失败计数
+
+                        // 释放锁（如果当前锁定了这个点）
+                        if (locked_goal_id_ == point_id) {
+                            releaseGoalLock();
+                        }
+                    } else {
+                        // 正常超时：机器人确实在导航，但超时了
+                        RCLCPP_INFO(node_->get_logger(),
+                                   "⏱️ Point ID %u visiting timeout (%.1f s), marking as DONE",
+                                   point_id, elapsed);
+                        updateGoalStatus(point_id, DONE);
+                        resetFailCount(point_id);  // Reset failure count on successful completion
+                    }
                 }
             }
         }
+    }
+}
+
+void GoalManagerAction::checkSkippedRecovery()
+{
+    auto current_time = node_->now();
+    uint32_t recovered_count = 0;
+
+    for (auto & status_pair : goal_status_list_) {
+        uint32_t point_id = status_pair.first;
+        auto & status = status_pair.second;
+
+        // Check SKIPPED points for recovery
+        if (status.status == SKIPPED) {
+            auto visit_it = visit_info_map_.find(point_id);
+            if (visit_it != visit_info_map_.end()) {
+                // Check if skip_time is set (rclcpp::Time(0) has seconds() == 0)
+                if (visit_it->second.skip_time.seconds() > 0) {
+                    auto elapsed_since_skip = (current_time - visit_it->second.skip_time).seconds();
+
+                    if (elapsed_since_skip >= skipped_recovery_time_) {
+                        RCLCPP_INFO(node_->get_logger(),
+                                   "🔄 SKIPPED point ID %u has recovered after %.1f s, marking as IDLE",
+                                   point_id, elapsed_since_skip);
+
+                        // Reset to IDLE and clear retry count
+                        updateGoalStatus(point_id, IDLE);
+                        visit_it->second.retry_count = 0;
+                        resetFailCount(point_id);
+
+                        recovered_count++;
+                    }
+                }
+            }
+        }
+    }
+
+    if (recovered_count > 0) {
+        RCLCPP_INFO(node_->get_logger(), "Recovered %u SKIPPED points to IDLE status", recovered_count);
     }
 }
 
@@ -641,6 +752,12 @@ bool GoalManagerAction::retryBlockedPoint(uint32_t point_id)
 
     updateGoalStatus(point_id, SKIPPED);
     resetFailCount(point_id);
+
+    // 记录跳过时间，用于后续恢复机制
+    visit_it->second.skip_time = node_->now();
+    RCLCPP_DEBUG(node_->get_logger(),
+                "SKIPPED point ID %u skip_time set, will recover after %.1f seconds",
+                point_id, skipped_recovery_time_);
 
     // 释放锁（如果当前锁定了这个点）
     if (locked_goal_id_ == point_id) {
@@ -787,6 +904,8 @@ uint32_t GoalManagerAction::findBestPointWithHysteresis(
 
         // Only consider IDLE points
         if (status.status != IDLE) {
+            RCLCPP_DEBUG(node_->get_logger(), "Point ID %u: status=%d (skipping, not IDLE)",
+                        status.point_id, status.status);
             continue;
         }
 
@@ -820,9 +939,10 @@ uint32_t GoalManagerAction::findBestPointWithHysteresis(
         double dist = euclideanDistance(robot_pose, it->second);
 
         // Combined score: prioritize observation score, then distance
-        // Normalize distance (assume max meaningful distance is 10m)
-        double normalized_distance = std::min(dist / 10.0, 1.0);
-        double distance_score = 1.0 - normalized_distance;  // Closer is better
+        // Improved distance normalization with smooth decay (exp-based)
+        // exp(-dist / 5.0): 0m → 1.0, 5m → 0.37, 10m → 0.14, 20m → 0.02
+        // This ensures distant points still have some distance differentiation
+        double distance_score = std::exp(-dist / 5.0);
 
         // Final score: 70% observation score, 30% distance
         double combined_score = 0.7 * it->second.score + 0.3 * distance_score;
@@ -840,8 +960,12 @@ uint32_t GoalManagerAction::findBestPointWithHysteresis(
     }
 
     if (best_id != 0) {
-        RCLCPP_DEBUG(node_->get_logger(), "Selected new candidate ID %u (score: %.2f, distance: %.2f)",
+        RCLCPP_INFO(node_->get_logger(), "Selected new candidate ID %u (score: %.2f, distance: %.2f)",
                     best_id, best_score, best_distance);
+    } else {
+        RCLCPP_WARN(node_->get_logger(), "No suitable IDLE point found (all points blocked or in cooldown)");
+        // 注意：这里只做日志记录，不自动重置
+        // 重置逻辑由主逻辑中的 "all_points_completed_" 或死锁检测处理
     }
 
     return best_id;

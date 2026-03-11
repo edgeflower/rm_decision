@@ -2,7 +2,7 @@
 <root BTCPP_format="4"
       main_tree_to_execute="BehaviorTree">
   <BehaviorTree ID="BehaviorTree">
-    <ReactiveSequence>
+    <Sequence name="NavigateAndVerify">
       <GetLocation topic_name="/lidar_odometry"
                    robot_location="{robot_pose}"/>
       <Sequence name="NavigateAndVerify">
@@ -16,10 +16,11 @@
                      arrival_distance="0.5"
                      arrival_speed="0.2"
                      stay_duration="1.0"
-                     min_exclusion_radius="2.0"
+                     min_exclusion_radius="0.1"
                      robot_speed="{robot_speed}"
                      auto_reset_cooldown="5.0"
                      completed_point_cooldown="10.0"
+                     skipped_recovery_time="30.0"
                      reached_goal_id="{reached_goal_id}"
                      best_goal="{best_goal}"
                      selected_id="{goal_id}"
@@ -42,11 +43,11 @@
                            allow_approximate="false"
                            robot_pose="{robot_pose}"
                            current_goal="{best_goal}"
-                           approximate_distance="0.2"/>
+                           approximate_distance="0.5"/>
           </RetryUntilSuccessful>
         </Sequence>
       </Sequence>
-    </ReactiveSequence>
+    </Sequence>
   </BehaviorTree>
 
   <!-- Description of Node Models (used by Groot) -->
@@ -81,11 +82,13 @@
       <input_port name="min_exclusion_radius"
                   default="2.0"/>
       <input_port name="robot_speed"
-                  default="{robot_speed}"/>
+                  default="0.0"/>
       <input_port name="auto_reset_cooldown"
                   default="5.0"/>
       <input_port name="completed_point_cooldown"
                   default="10.0"/>
+      <input_port name="skipped_recovery_time"
+                  default="30.0"/>
       <input_port name="reached_goal_id"
                   default="{reached_goal_id}"/>
       <output_port name="best_goal"
@@ -103,25 +106,25 @@
     </Action>
     <Condition ID="IsGoalReached">
       <input_port name="goal_id"
-                  default="0"/>
+                  default="{goal_id}"/>
       <input_port name="goal_statuses"
                   default="{goal_statuses}"/>
       <input_port name="check_current"
                   default="false"/>
       <input_port name="current_goal_id"
-                  default="0"/>
+                  default="{goal_id}"/>
       <input_port name="allow_approximate"
                   default="false"/>
       <input_port name="robot_pose"
                   default="{robot_pose}"/>
       <input_port name="current_goal"
-                  default="{goal}"/>
+                  default="{best_goal}"/>
       <input_port name="approximate_distance"
                   default="0.2"/>
     </Condition>
     <Action ID="SendGoal">
       <input_port name="goal_pose"
-                  default="{goal}"/>
+                  default="{best_goal}"/>
       <input_port name="action_name"
                   default="/navigate_to_pose"/>
       <input_port name="current_goal_id"

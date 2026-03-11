@@ -23,14 +23,10 @@ SendGoalAction::SendGoalAction(
         action_name_ = "/navigate_to_pose";
     }
 
-    // 使用 ROS2 rclcpp_action 通用接口手动创建 client 等待
-    auto client = rclcpp_action::create_client<nav2_msgs::action::NavigateToPose>(node_, action_name_);
-    RCLCPP_INFO(node_->get_logger(), "[%s] 等待 Action Server [%s] ...", name.c_str(), action_name_.c_str());
-    if (!client->wait_for_action_server(std::chrono::seconds(5))) {
-        RCLCPP_ERROR(node_->get_logger(), " [%s] Action Server [%s] 不可达！", name.c_str(), action_name_.c_str());
-        throw BT::RuntimeError("Action server not available: ", action_name_);
-    }
-    RCLCPP_INFO(node_->get_logger(), " [%s] 已连接 Action Server: %s", name.c_str(), action_name_.c_str());
+    RCLCPP_INFO(node_->get_logger(), "[%s] SendGoal initialized with action_server: %s",
+                name.c_str(), action_name_.c_str());
+    // Note: RosActionNode base class handles action server connection
+    // The action server will be connected when the node is first ticked
 }
 
 bool SendGoalAction::setGoal(nav2_msgs::action::NavigateToPose::Goal & goal)
@@ -65,6 +61,11 @@ bool SendGoalAction::setGoal(nav2_msgs::action::NavigateToPose::Goal & goal)
 void SendGoalAction::onHalt()
 {
     RCLCPP_INFO(node_->get_logger(), "SendGoalAction has been halted");
+
+    // 握手机制：清空握手信号，防止旧信号残留影响下一轮
+    setOutput("reached_goal_id", static_cast<int32_t>(-1));  // SIGNAL_IDLE
+    RCLCPP_DEBUG(node_->get_logger(),
+                 "🤝 Handshake: cleared reached_goal_id to SIGNAL_IDLE (-1) due to halt");
 }
 
 BT::NodeStatus SendGoalAction::onResultReceived(const WrappedResult & wr)
@@ -85,7 +86,7 @@ BT::NodeStatus SendGoalAction::onResultReceived(const WrappedResult & wr)
             // 握手机制：输出成功到达的目标 ID
             if (has_goal_id && current_goal_id > 0) {
                 setOutput("reached_goal_id", static_cast<int32_t>(current_goal_id));
-                RCLCPP_INFO(node_->get_logger(), "Handshake: reporting reached_goal_id=%u", current_goal_id);
+                RCLCPP_INFO(node_->get_logger(), "🤝 Handshake: reporting reached_goal_id=%u (SUCCESS)", current_goal_id);
             } else {
                 RCLCPP_WARN(node_->get_logger(), "Handshake: no valid current_goal_id available");
                 setOutput("reached_goal_id", static_cast<int32_t>(-1));
@@ -93,10 +94,39 @@ BT::NodeStatus SendGoalAction::onResultReceived(const WrappedResult & wr)
 
             return BT::NodeStatus::SUCCESS;
         case rclcpp_action::ResultCode::ABORTED:
-            RCLCPP_WARN(node_->get_logger(), "导航目标被中止！");
+            RCLCPP_WARN(node_->get_logger(), "❌ 导航目标被中止！");
+
+            // 握手机制：输出失败信号（负值表示失败，使用偏移避免与系统任务冲突）
+            // 格式：-(1000 + current_goal_id) 例如：点5失败 → -1005
+            if (has_goal_id && current_goal_id > 0) {
+                int32_t failure_signal = -1000 - static_cast<int32_t>(current_goal_id);
+                setOutput("reached_goal_id", failure_signal);
+                RCLCPP_WARN(node_->get_logger(),
+                           "🤝 Handshake: reporting navigation failure for point %u (reached_goal_id=%d)",
+                           current_goal_id, failure_signal);
+            } else {
+                // 无 valid goal_id 时使用通用失败码
+                setOutput("reached_goal_id", static_cast<int32_t>(-1001));
+                RCLCPP_WARN(node_->get_logger(),
+                           "🤝 Handshake: reporting generic navigation failure (reached_goal_id=-1001, no valid goal_id)");
+            }
             return BT::NodeStatus::FAILURE;
         case rclcpp_action::ResultCode::CANCELED:
-            RCLCPP_WARN(node_->get_logger(), "导航目标被取消！");
+            RCLCPP_WARN(node_->get_logger(), "❌ 导航目标被取消！");
+
+            // 握手机制：输出失败信号
+            if (has_goal_id && current_goal_id > 0) {
+                int32_t failure_signal = -1000 - static_cast<int32_t>(current_goal_id);
+                setOutput("reached_goal_id", failure_signal);
+                RCLCPP_WARN(node_->get_logger(),
+                           "🤝 Handshake: reporting navigation failure for point %u (reached_goal_id=%d)",
+                           current_goal_id, failure_signal);
+            } else {
+                // 无 valid goal_id 时使用通用失败码
+                setOutput("reached_goal_id", static_cast<int32_t>(-1001));
+                RCLCPP_WARN(node_->get_logger(),
+                           "🤝 Handshake: reporting generic navigation failure (reached_goal_id=-1001, no valid goal_id)");
+            }
             return BT::NodeStatus::FAILURE;
         default:
             RCLCPP_ERROR(node_->get_logger(), "未知导航结果状态");
@@ -113,6 +143,13 @@ BT::NodeStatus SendGoalAction::onFeedback(
 BT::NodeStatus SendGoalAction::onFailure(BT::ActionNodeErrorCode error)
 {
     RCLCPP_ERROR(node_->get_logger(), "SendGoalAction 执行失败，错误码: %d", static_cast<int>(error));
+
+    // 握手机制：设置通用失败信号，防止 GoalManager 的 VISITING 状态永久卡住
+    setOutput("reached_goal_id", static_cast<int32_t>(-1001));
+    RCLCPP_WARN(node_->get_logger(),
+               "🤝 Handshake: reporting action failure (reached_goal_id=-1001, error=%d)",
+               static_cast<int>(error));
+
     return BT::NodeStatus::FAILURE;
 }
 

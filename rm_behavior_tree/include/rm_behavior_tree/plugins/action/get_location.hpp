@@ -28,9 +28,8 @@ namespace rm_behavior_tree {
         GetLocationAction(const std::string & name, const BT::NodeConfig & conf, const BT::RosNodeParams & params);
 
         static BT::PortsList providedPorts(){
-            return {
-                BT::InputPort<std::string>("topic_name"),
-                BT::OutputPort<geometry_msgs::msg::PoseStamped>("robot_location")};
+            return providedBasicPorts({
+                BT::OutputPort<geometry_msgs::msg::PoseStamped>("robot_location")});
         }
 
         BT::NodeStatus onTick(const std::shared_ptr<nav_msgs::msg::Odometry> &last_msg) override;

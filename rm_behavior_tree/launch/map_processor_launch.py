@@ -10,6 +10,9 @@ def generate_launch_description():
     pkg_dir = get_package_share_directory('rm_behavior_tree')
     config_dir = os.path.join(pkg_dir, 'config')
 
+    # Load YAML configuration
+    map_processor_config = os.path.join(config_dir, 'map_processor.yaml')
+
     # Declare launch arguments
     map_topic_arg = DeclareLaunchArgument(
         'map_topic',
@@ -53,14 +56,13 @@ def generate_launch_description():
         executable='map_processor_node',
         name='map_processor_node',
         output='screen',
-        parameters=[{
-            'map_topic': LaunchConfiguration('map_topic'),
-            'sample_step': LaunchConfiguration('sample_step'),
-            'robot_radius': LaunchConfiguration('robot_radius'),
-            'ray_count': LaunchConfiguration('ray_count'),
-            'update_rate': LaunchConfiguration('update_rate'),
-            'use_sim_time': LaunchConfiguration('use_sim_time'),
-        }]
+        parameters=[
+            map_processor_config,  # Load YAML config first
+            {  # Command-line overrides
+                'map_topic': LaunchConfiguration('map_topic'),
+                'use_sim_time': LaunchConfiguration('use_sim_time'),
+            }
+        ]
     )
 
     # Create launch description

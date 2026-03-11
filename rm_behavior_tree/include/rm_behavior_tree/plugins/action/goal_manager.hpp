@@ -55,6 +55,7 @@ struct PointVisitInfo {
     int retry_count;
     int max_retries;
     bool arrival_detected;          // Flag for semantic arrival detection
+    rclcpp::Time skip_time;         // Time when point was marked as SKIPPED
 
     PointVisitInfo()
         : point_id(0)
@@ -93,6 +94,7 @@ public:
             BT::InputPort<double>("robot_speed", 0.0, "Current robot speed for semantic arrival (m/s)"),
             BT::InputPort<double>("auto_reset_cooldown", 5.0, "Minimum time between auto-resets for deadlock (seconds)"),
             BT::InputPort<double>("completed_point_cooldown", 10.0, "Cooldown time for last completed point to prevent immediate return (seconds)"),
+            BT::InputPort<double>("skipped_recovery_time", 30.0, "Time before SKIPPED points automatically recover to IDLE (seconds)"),
             BT::InputPort<int32_t>("reached_goal_id", SystemGoalID::SIGNAL_IDLE, "Handshake ID from SendGoal: patrol (>0) or system task (<0)"),
             BT::OutputPort<geometry_msgs::msg::PoseStamped>("best_goal"),
             BT::OutputPort<uint32_t>("selected_id"),
@@ -153,6 +155,9 @@ private:
     rclcpp::Time last_complete_time_;     // Time when last point was completed
     double completed_point_cooldown_;     // Cooldown time for last completed point (seconds)
 
+    // SKIPPED point recovery mechanism
+    double skipped_recovery_time_;        // Time before SKIPPED points auto-recover to IDLE
+
     // Helper functions
     uint32_t findNearestIdlePoint(const geometry_msgs::msg::PoseStamped & robot_pose);
     uint32_t findNearestPointConsideringRetry(const geometry_msgs::msg::PoseStamped & robot_pose);
@@ -186,6 +191,7 @@ private:
     // Status management
     void updateGoalStatus(uint32_t point_id, GoalStatusEnum status);
     void checkVisitingTimeouts();
+    void checkSkippedRecovery();
     void checkAllPointsCompleted();
     bool retryBlockedPoint(uint32_t point_id);
 

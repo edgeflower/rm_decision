@@ -44,8 +44,14 @@ int main(int argc, char ** argv)
     // (3) 用于发送目标位置信息的插件： 向机器人发送目标点数据
     BT::RosNodeParams params_send_goal;
     params_send_goal.nh = std::make_shared<rclcpp::Node>("goal_pose");
-    // 设置该插件节点的默认端口名称 “goal_pose”，用于传递目标位置信息
+    // 设置该插件节点的默认端口名称 "goal_pose"，用于传递目标位置信息
     params_send_goal.default_port_value = "goal_pose";
+
+    // (4) 用于获取机器人位置信息的插件： 从里程计获取机器人当前位置
+    BT::RosNodeParams params_get_location;
+    params_get_location.nh = std::make_shared<rclcpp::Node>("get_location");
+    // 设置默认topic名称为lidar_odometry，与XML配置保持一致
+    params_get_location.default_port_value = "/lidar_odometry";
 
     //-------------------插件库名称列表----------------------------
     // 列出所有需要注册的插件名称，每个插件均封装成一个共享库文件
@@ -92,6 +98,8 @@ int main(int argc, char ** argv)
     }
 
     RegisterRosNode(factory, BT::SharedLibrary::getOSName("send_goal"),params_send_goal);
+
+    RegisterRosNode(factory, BT::SharedLibrary::getOSName("get_location"), params_get_location);
 
     RegisterRosNode(factory, BT::SharedLibrary::getOSName("robot_control"), params_robot_control);
     //--------------------------创建行为树------------------------------------
