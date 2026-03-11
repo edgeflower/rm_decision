@@ -89,6 +89,10 @@ MapProcessorNode::MapProcessorNode(const rclcpp::NodeOptions & options)
 
 void MapProcessorNode::mapCallback(const nav_msgs::msg::OccupancyGrid::SharedPtr msg)
 {
+    if (msg->info.width == 0 || msg->info.height == 0 || msg->data.empty()) {
+        RCLCPP_WARN(this->get_logger(), "Received an empty map (0x0). Skipping processing...");
+        return;
+    }
     current_map_ = msg;
     RCLCPP_INFO(this->get_logger(), "Received map: %d x %d, resolution: %.3f m/pixel",
                 msg->info.width, msg->info.height, msg->info.resolution);

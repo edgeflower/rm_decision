@@ -79,35 +79,77 @@ BT::NodeStatus GoalManagerAction::onTick(
 
     // ========== 握手机制：优先级最高 ==========
     // 在任何其他检测之前，先检查 SendGoal 是否报告了到达
-    int32_t reached_goal_id = -1;
+    // 支持正数 ID（巡逻点）和负数 ID（系统任务）
+    int32_t reached_goal_id = SystemGoalID::SIGNAL_IDLE;
     auto reached_result = getInput<int32_t>("reached_goal_id");
     if (reached_result.has_value()) {
         reached_goal_id = reached_result.value();
     }
 
-    if (reached_goal_id > 0) {
-        // 检查是否匹配当前锁定的目标
-        if (locked_goal_id_ != 0 && static_cast<uint32_t>(reached_goal_id) == locked_goal_id_) {
-            RCLCPP_INFO(node_->get_logger(),
-                        "Handshake SUCCESS: received reached_goal_id=%u matches locked_goal_id_, marking as DONE",
-                        locked_goal_id_);
+    // 处理所有非空闲信号（包括正数巡逻点和负数系统任务）
+    if (reached_goal_id != SystemGoalID::SIGNAL_IDLE) {
+        bool should_clear_signal = true;  // 默认清空信号
 
-            updateGoalStatus(locked_goal_id_, DONE);
-            resetFailCount(locked_goal_id_);
-            releaseGoalLock();
+        if (reached_goal_id > 0) {
+            // ========== 正数 ID：巡逻点握手 ==========
+            if (locked_goal_id_ != 0 && static_cast<uint32_t>(reached_goal_id) == locked_goal_id_) {
+                RCLCPP_INFO(node_->get_logger(),
+                            "🤝 Handshake SUCCESS: patrol point %u completed, marking as DONE",
+                            locked_goal_id_);
 
-            // 清空握手信号，防止重复处理（逻辑锁）
-            setOutput("reached_goal_id", static_cast<int32_t>(-1));
-        } else if (locked_goal_id_ == 0) {
-            RCLCPP_WARN(node_->get_logger(),
-                        "Handshake: received reached_goal_id=%d but no goal is locked, clearing",
-                        reached_goal_id);
-            setOutput("reached_goal_id", static_cast<int32_t>(-1));
+                updateGoalStatus(locked_goal_id_, DONE);
+                resetFailCount(locked_goal_id_);
+                releaseGoalLock();
+
+            } else if (locked_goal_id_ == 0) {
+                RCLCPP_WARN(node_->get_logger(),
+                            "Handshake: received patrol point ID=%d but no goal is locked, clearing",
+                            reached_goal_id);
+
+            } else {
+                // reached_goal_id != locked_goal_id_，过期信号
+                RCLCPP_DEBUG(node_->get_logger(),
+                             "Handshake: expired patrol signal (ID=%d vs locked=%u), ignoring",
+                             reached_goal_id, locked_goal_id_);
+                should_clear_signal = false;  // 过期信号不清空，可能是并发导致的
+            }
+
         } else {
-            // reached_goal_id != locked_goal_id_，可能是过期的信号
-            RCLCPP_DEBUG(node_->get_logger(),
-                        "Handshake: received reached_goal_id=%d does not match locked_goal_id=%u, ignoring",
-                        reached_goal_id, locked_goal_id_);
+            // ========== 负数 ID：系统任务完成 ==========
+            // 不更新任何巡逻点状态，只记录日志并清空信号
+            const char* task_name = "unknown";
+            switch (reached_goal_id) {
+                case SystemGoalID::GO_HOME:
+                    task_name = "GO_HOME (回血)";
+                    break;
+                case SystemGoalID::MANUAL_CONTROL:
+                    task_name = "MANUAL_CONTROL (手动接管)";
+                    break;
+                case SystemGoalID::EMERGENCY_STOP:
+                    task_name = "EMERGENCY_STOP (紧急停止)";
+                    break;
+                default:
+                    task_name = "UNKNOWN_SYSTEM_TASK";
+                    break;
+            }
+
+            RCLCPP_INFO(node_->get_logger(),
+                        "🏠 System task completed: %s (ID=%d), signal cleared for patrol logic",
+                        task_name, reached_goal_id);
+
+            // 系统任务不影响巡逻状态，但需要确保锁状态合理
+            // 如果回家期间锁仍然存在，可能需要释放
+            if (locked_goal_id_ != 0) {
+                RCLCPP_DEBUG(node_->get_logger(),
+                             "System task completed while patrol point %u still locked, keeping lock for now",
+                             locked_goal_id_);
+            }
+        }
+
+        // 阅后即焚：清空所有已处理的信号
+        if (should_clear_signal) {
+            setOutput("reached_goal_id", SystemGoalID::SIGNAL_IDLE);
+            RCLCPP_DEBUG(node_->get_logger(), "Handshake: signal cleared to SIGNAL_IDLE");
         }
     }
 
@@ -356,7 +398,7 @@ BT::NodeStatus GoalManagerAction::onTick(
     setOutput("goal_statuses", goal_statuses);
 
     // 握手机制：切换新目标时清空握手信号，确保信号新鲜度
-    setOutput("reached_goal_id", static_cast<int32_t>(-1));
+    setOutput("reached_goal_id", SystemGoalID::SIGNAL_IDLE);
     RCLCPP_DEBUG(node_->get_logger(), "Handshake: cleared reached_goal_id for new goal %u", best_id);
 
     RCLCPP_INFO(node_->get_logger(), "Selected goal ID %u at (%.2f, %.2f) with score %.2f, cost: %.2f",
@@ -582,7 +624,10 @@ void GoalManagerAction::resetAllPoints()
 
     all_points_completed_ = false;
 
-    RCLCPP_INFO(node_->get_logger(), "Reset all %zu observation points to IDLE", goal_status_list_.size());
+    // 握手机制：清空握手信号，确保新的一轮巡逻从"白纸"开始
+    setOutput("reached_goal_id", SystemGoalID::SIGNAL_IDLE);
+    RCLCPP_INFO(node_->get_logger(), "Reset all %zu observation points to IDLE (handshake cleared)",
+                goal_status_list_.size());
 }
 
 std::vector<uint32_t> GoalManagerAction::sortPointsByNearestNeighbor(

@@ -28,6 +28,14 @@ enum GoalStatusEnum : uint8_t {
     RETRYING = 4
 };
 
+// System Goal IDs for special tasks (negative values to avoid conflict with patrol points)
+enum SystemGoalID : int32_t {
+    SIGNAL_IDLE = -1,    // 空闲/握手清空信号
+    GO_HOME = -2,        // 回家补血任务
+    MANUAL_CONTROL = -3, // 手动接管任务
+    EMERGENCY_STOP = -4  // 紧急停止任务
+};
+
 // Goal status structure for Blackboard sharing (must match IsGoalReachedCondition)
 struct GoalStatusEntry {
     uint32_t point_id;
@@ -83,7 +91,7 @@ public:
             BT::InputPort<double>("min_exclusion_radius", 1.0, "Minimum radius to exclude near points (meters)"),
             BT::InputPort<double>("robot_speed", 0.0, "Current robot speed for semantic arrival (m/s)"),
             BT::InputPort<double>("auto_reset_cooldown", 5.0, "Minimum time between auto-resets for deadlock (seconds)"),
-            BT::InputPort<int32_t>("reached_goal_id", -1, "Handshake ID from SendGoal (cleared to -1 after matching)"),
+            BT::InputPort<int32_t>("reached_goal_id", SystemGoalID::SIGNAL_IDLE, "Handshake ID from SendGoal: patrol (>0) or system task (<0)"),
             BT::OutputPort<geometry_msgs::msg::PoseStamped>("best_goal"),
             BT::OutputPort<uint32_t>("selected_id"),
             BT::OutputPort<bool>("should_reset", "True if all points completed"),
