@@ -36,8 +36,8 @@ BT::NodeStatus GetLocationAction::onTick(
     if (last_msg) {
         robot_location.pose.position.x = last_msg->pose.pose.position.x;
         robot_location.pose.position.y = last_msg->pose.pose.position.y;
-        robot_location.pose.position.z = last_msg->pose.pose.position.z;
-        robot_location.pose.orientation = last_msg->pose.pose.orientation;
+        robot_location.pose.position.z = 0.0;
+        
 
         setOutput("robot_location", robot_location);
 

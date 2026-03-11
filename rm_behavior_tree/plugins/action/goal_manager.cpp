@@ -32,6 +32,7 @@ GoalManagerAction::GoalManagerAction(
     getInput<double>("arrival_speed", arrival_speed_);
     getInput<double>("stay_duration", stay_duration_);
     getInput<double>("min_exclusion_radius", min_exclusion_radius_);
+    getInput<double>("auto_reset_cooldown", auto_reset_cooldown_);
 
     // Set defaults if not provided
     if (lethal_threshold_ <= 0) lethal_threshold_ = 252.0;
@@ -43,6 +44,7 @@ GoalManagerAction::GoalManagerAction(
     if (arrival_speed_ <= 0) arrival_speed_ = 0.1;
     if (stay_duration_ <= 0) stay_duration_ = 1.5;
     if (min_exclusion_radius_ <= 0) min_exclusion_radius_ = 1.0;
+    if (auto_reset_cooldown_ <= 0) auto_reset_cooldown_ = 5.0;
 
     RCLCPP_INFO(node_->get_logger(), "GoalManagerAction initialized:");
     RCLCPP_INFO(node_->get_logger(), "  lethal_threshold: %.1f", lethal_threshold_);
@@ -55,6 +57,7 @@ GoalManagerAction::GoalManagerAction(
     RCLCPP_INFO(node_->get_logger(), "  arrival_speed: %.2f m/s", arrival_speed_);
     RCLCPP_INFO(node_->get_logger(), "  stay_duration: %.1f s", stay_duration_);
     RCLCPP_INFO(node_->get_logger(), "  min_exclusion_radius: %.2f m", min_exclusion_radius_);
+    RCLCPP_INFO(node_->get_logger(), "  auto_reset_cooldown: %.1f s", auto_reset_cooldown_);
 }
 
 BT::NodeStatus GoalManagerAction::onTick(
@@ -62,10 +65,15 @@ BT::NodeStatus GoalManagerAction::onTick(
 {
     // Check if we received observation points data
     if (!last_msg) {
-        RCLCPP_WARN(node_->get_logger(), "Waiting for observation points...");
-        setOutput("should_reset", false);
-        return BT::NodeStatus::FAILURE;
-    }
+    RCLCPP_WARN_THROTTLE(
+        node_->get_logger(),
+        *node_->get_clock(),
+        1000,   // 5 秒最多打印一次
+        "Waiting for observation points..."
+    );
+    setOutput("should_reset", false);
+    return BT::NodeStatus::FAILURE;
+}
 
     RCLCPP_INFO(node_->get_logger(), "Received %zu observation points", last_msg->points.size());
 
@@ -78,7 +86,7 @@ BT::NodeStatus GoalManagerAction::onTick(
         return BT::NodeStatus::FAILURE;
     }
 
-    // Try to get current speed (optional)
+    // Try to get current speed (optional) 机器人自身速度对于语义到达判断很重要，如果没有提供则默认为0
     getInput<double>("robot_speed", current_speed);
 
     // Check if reset is requested
@@ -116,23 +124,15 @@ BT::NodeStatus GoalManagerAction::onTick(
     // Check for visiting timeouts and update statuses
     checkVisitingTimeouts();
 
-    // Check semantic arrival for currently locked goal (before checking timeouts)
+    // Check semantic arrival for currently locked goal
+    // When arrival is detected, immediately mark as DONE and release lock
     if (locked_goal_id_ != 0) {
-        auto visit_it = visit_info_map_.find(locked_goal_id_);
-        if (visit_it != visit_info_map_.end() && visit_it->second.arrival_detected) {
-            // Check if stay duration is complete
-            if (checkStayCompletion(locked_goal_id_)) {
-                RCLCPP_INFO(node_->get_logger(), "Stay duration complete for locked goal ID %u, marking as DONE",
-                            locked_goal_id_);
-                updateGoalStatus(locked_goal_id_, DONE);
-                resetFailCount(locked_goal_id_);  // Reset failure count on successful completion
-                releaseGoalLock();
-            }
-        } else {
-            // Check for semantic arrival
-            if (checkSemanticArrival(locked_goal_id_, robot_pose, current_speed)) {
-                RCLCPP_INFO(node_->get_logger(), "Semantic arrival detected for locked goal ID %u", locked_goal_id_);
-            }
+        if (checkSemanticArrival(locked_goal_id_, robot_pose, current_speed)) {
+            RCLCPP_INFO(node_->get_logger(), "Semantic arrival detected for locked goal ID %u, immediately marking as DONE",
+                        locked_goal_id_);
+            updateGoalStatus(locked_goal_id_, DONE);
+            resetFailCount(locked_goal_id_);  // Reset failure count on successful completion
+            releaseGoalLock();
         }
     }
 
@@ -171,20 +171,72 @@ BT::NodeStatus GoalManagerAction::onTick(
         return BT::NodeStatus::SUCCESS;
     }
 
-    // No available points but not all completed
+    // No available points but not all completed - check for deadlock
     if (best_id == 0) {
-        RCLCPP_WARN(node_->get_logger(), "No available observation points (all blocked or visiting)");
-        setOutput("should_reset", false);
-
-        uint32_t idle_count = 0, done_count = 0;
+        // Count status of all points
+        uint32_t idle_count = 0, blocked_count = 0, visiting_count = 0, done_count = 0;
         for (const auto & status_pair : goal_status_list_) {
-            if (status_pair.second.status == IDLE) idle_count++;
-            if (status_pair.second.status == DONE) done_count++;
+            switch (status_pair.second.status) {
+                case IDLE:     idle_count++;     break;
+                case BLOCKED:  blocked_count++;  break;
+                case VISITING: visiting_count++; break;
+                case DONE:     done_count++;     break;
+                case RETRYING: blocked_count++;  break;  // RETRYING 也是阻塞状态
+            }
         }
-        setOutput("idle_count", idle_count);
-        setOutput("done_count", done_count);
 
-        return BT::NodeStatus::FAILURE;
+        // Check cooldown before auto-reset
+        auto current_time = node_->now();
+        auto cooldown_elapsed = (current_time - last_auto_reset_time_).seconds();
+
+        // 死锁条件：
+        // 1. 没有 IDLE 点
+        // 2. 有 BLOCKED 点（所有点都不可达）
+        // 3. 或者有 VISITING 点且有 DONE 点（说明某些点已完成，但当前点卡住了）
+        bool is_deadlock = (idle_count == 0) && (blocked_count > 0 || (visiting_count > 0 && done_count > 0));
+
+        // 只有在冷却时间过后才执行自动重置
+        if (is_deadlock && cooldown_elapsed >= auto_reset_cooldown_) {
+            RCLCPP_WARN(node_->get_logger(),
+                        "Deadlock detected: idle=%u, blocked=%u, visiting=%u, done=%u (cooldown: %.1fs elapsed). Auto-resetting all non-DONE points to IDLE...",
+                        idle_count, blocked_count, visiting_count, done_count, cooldown_elapsed);
+
+            // 自动重置所有非 DONE 的点为 IDLE
+            for (auto & status_pair : goal_status_list_) {
+                if (status_pair.second.status != DONE) {
+                    updateGoalStatus(status_pair.first, IDLE);
+                    resetFailCount(status_pair.first);
+                }
+            }
+            releaseGoalLock();
+
+            // 更新上次重置时间
+            last_auto_reset_time_ = current_time;
+
+            // 重置后重新尝试选择
+            best_id = findBestPointWithHysteresis(robot_pose);
+            if (best_id == 0) {
+                best_id = findNearestPointConsideringRetry(robot_pose);
+            }
+
+            if (best_id != 0) {
+                RCLCPP_INFO(node_->get_logger(), "Auto-reset successful, selected goal ID %u", best_id);
+            } else {
+                RCLCPP_ERROR(node_->get_logger(), "Auto-reset failed, still no available points");
+            }
+        } else if (is_deadlock) {
+            RCLCPP_DEBUG(node_->get_logger(),
+                        "Deadlock detected but cooldown active (%.1fs / %.1fs), waiting...",
+                        cooldown_elapsed, auto_reset_cooldown_);
+        }
+
+        // 如果重置后仍无可选点，才返回 FAILURE
+        if (best_id == 0) {
+            setOutput("should_reset", false);
+            setOutput("idle_count", idle_count);
+            setOutput("done_count", done_count);
+            return BT::NodeStatus::FAILURE;
+        }
     }
 
     // Get the best observation point

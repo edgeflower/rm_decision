@@ -82,6 +82,7 @@ public:
             BT::InputPort<double>("stay_duration", 1.5, "Time to wait at goal after arrival (seconds)"),
             BT::InputPort<double>("min_exclusion_radius", 1.0, "Minimum radius to exclude near points (meters)"),
             BT::InputPort<double>("robot_speed", 0.0, "Current robot speed for semantic arrival (m/s)"),
+            BT::InputPort<double>("auto_reset_cooldown", 5.0, "Minimum time between auto-resets for deadlock (seconds)"),
             BT::OutputPort<geometry_msgs::msg::PoseStamped>("best_goal"),
             BT::OutputPort<uint32_t>("selected_id"),
             BT::OutputPort<bool>("should_reset", "True if all points completed"),
@@ -131,6 +132,10 @@ private:
 
     // Dynamic proximity exclusion
     double min_exclusion_radius_;
+
+    // Auto-reset deadlock recovery
+    double auto_reset_cooldown_;        // Minimum time between auto-resets (seconds)
+    rclcpp::Time last_auto_reset_time_; // Last time auto-reset was triggered
 
     // Helper functions
     uint32_t findNearestIdlePoint(const geometry_msgs::msg::PoseStamped & robot_pose);
