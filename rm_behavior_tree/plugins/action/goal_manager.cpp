@@ -19,6 +19,8 @@ GoalManagerAction::GoalManagerAction(
 , all_points_completed_(false)
 , locked_goal_id_(0)
 , locked_goal_score_(0.0)
+, last_completed_point_id_(0)
+, completed_point_cooldown_(10.0)
 {
     // Get parameters from ports if provided, otherwise use defaults
     getInput<double>("lethal_threshold", lethal_threshold_);
@@ -33,6 +35,7 @@ GoalManagerAction::GoalManagerAction(
     getInput<double>("stay_duration", stay_duration_);
     getInput<double>("min_exclusion_radius", min_exclusion_radius_);
     getInput<double>("auto_reset_cooldown", auto_reset_cooldown_);
+    getInput<double>("completed_point_cooldown", completed_point_cooldown_);
 
     // Set defaults if not provided
     if (lethal_threshold_ <= 0) lethal_threshold_ = 252.0;
@@ -45,6 +48,7 @@ GoalManagerAction::GoalManagerAction(
     if (stay_duration_ <= 0) stay_duration_ = 1.5;
     if (min_exclusion_radius_ <= 0) min_exclusion_radius_ = 1.0;
     if (auto_reset_cooldown_ <= 0) auto_reset_cooldown_ = 5.0;
+    if (completed_point_cooldown_ <= 0) completed_point_cooldown_ = 10.0;
 
     RCLCPP_INFO(node_->get_logger(), "GoalManagerAction initialized:");
     RCLCPP_INFO(node_->get_logger(), "  lethal_threshold: %.1f", lethal_threshold_);
@@ -58,6 +62,7 @@ GoalManagerAction::GoalManagerAction(
     RCLCPP_INFO(node_->get_logger(), "  stay_duration: %.1f s", stay_duration_);
     RCLCPP_INFO(node_->get_logger(), "  min_exclusion_radius: %.2f m", min_exclusion_radius_);
     RCLCPP_INFO(node_->get_logger(), "  auto_reset_cooldown: %.1f s", auto_reset_cooldown_);
+    RCLCPP_INFO(node_->get_logger(), "  completed_point_cooldown: %.1f s", completed_point_cooldown_);
 }
 
 BT::NodeStatus GoalManagerAction::onTick(
@@ -123,7 +128,7 @@ BT::NodeStatus GoalManagerAction::onTick(
                     task_name = "GO_HOME (回血)";
                     break;
                 case SystemGoalID::MANUAL_CONTROL:
-                    task_name = "MANUAL_CONTROL (手动接管)";
+                    task_name = "MANUAL_CONTROL (手动接管)";  // 视觉发现敌人追击任务也可以用这个 ID，具体任务类型可以通过日志区分
                     break;
                 case SystemGoalID::EMERGENCY_STOP:
                     task_name = "EMERGENCY_STOP (紧急停止)";
@@ -200,17 +205,23 @@ BT::NodeStatus GoalManagerAction::onTick(
     // Check for visiting timeouts and update statuses
     checkVisitingTimeouts();
 
-    // Check semantic arrival for currently locked goal
-    // When arrival is detected, immediately mark as DONE and release lock
-    if (locked_goal_id_ != 0) {
-        if (checkSemanticArrival(locked_goal_id_, robot_pose, current_speed)) {
-            RCLCPP_INFO(node_->get_logger(), "Semantic arrival detected for locked goal ID %u, immediately marking as DONE",
-                        locked_goal_id_);
-            updateGoalStatus(locked_goal_id_, DONE);
-            resetFailCount(locked_goal_id_);  // Reset failure count on successful completion
-            releaseGoalLock();
-        }
-    }
+    // ========== 语义到达检测已禁用 ==========
+    // 原因：握手机制（基于 nav2 导航结果）更可靠，避免两套机制竞争
+    // 如果 SendGoal 发布握手信号，会由握手检测逻辑处理
+    // 语义到达检测可能导致：握手先释放锁 → 语义到达检测时 locked_goal_id_ 已为 0
+    //
+    // 如需启用语义到达作为备用机制，请确保与握手机制互斥（例如：只在 reached_goal_id == SIGNAL_IDLE 时执行）
+    //
+    // if (locked_goal_id_ != 0 && reached_goal_id == SystemGoalID::SIGNAL_IDLE) {
+    //     if (checkSemanticArrival(locked_goal_id_, robot_pose, current_speed)) {
+    //         RCLCPP_INFO(node_->get_logger(), "Semantic arrival detected for locked goal ID %u, immediately marking as DONE",
+    //                     locked_goal_id_);
+    //         updateGoalStatus(locked_goal_id_, DONE);
+    //         resetFailCount(locked_goal_id_);
+    //         releaseGoalLock();
+    //     }
+    // }
+
 
     // Check if all points are completed
     checkAllPointsCompleted();
@@ -230,27 +241,39 @@ BT::NodeStatus GoalManagerAction::onTick(
         return BT::NodeStatus::FAILURE;
     }
 
-    // All points are done
+    // All points are done - auto reset for continuous patrol loop
     if (best_id == 0 && all_points_completed_) {
-        RCLCPP_INFO(node_->get_logger(), "All observation points completed, ready for reset");
-        setOutput("should_reset", true);
-
+        // 统计完成的点数
         uint32_t done_count = 0;
         for (const auto & status_pair : goal_status_list_) {
             if (status_pair.second.status == DONE) {
                 done_count++;
             }
         }
-        setOutput("done_count", done_count);
-        setOutput("idle_count", static_cast<uint32_t>(0));
 
-        return BT::NodeStatus::SUCCESS;
+        RCLCPP_INFO(node_->get_logger(), "✅ All %u observation points completed, auto-resetting for next patrol round...", done_count);
+
+        // 自动重置所有点为 IDLE
+        resetAllPoints();
+
+        // 重置后重新尝试选择目标
+        best_id = findBestPointWithHysteresis(robot_pose);
+
+        // 如果重置后仍无点可选（异常情况）
+        if (best_id == 0 && observation_points_.empty()) {
+            RCLCPP_WARN(node_->get_logger(), "No observation points available even after reset");
+            setOutput("should_reset", false);
+            return BT::NodeStatus::FAILURE;
+        }
+
+        // 如果重置后有可用点，继续正常流程（不返回，继续执行下面的代码）
+        RCLCPP_INFO(node_->get_logger(), "Patrol round reset complete, continuing with new targets");
     }
 
     // No available points but not all completed - check for deadlock
     if (best_id == 0) {
         // Count status of all points
-        uint32_t idle_count = 0, blocked_count = 0, visiting_count = 0, done_count = 0;
+        uint32_t idle_count = 0, blocked_count = 0, visiting_count = 0, done_count = 0, skipped_count = 0;
         for (const auto & status_pair : goal_status_list_) {
             switch (status_pair.second.status) {
                 case IDLE:     idle_count++;     break;
@@ -258,6 +281,7 @@ BT::NodeStatus GoalManagerAction::onTick(
                 case VISITING: visiting_count++; break;
                 case DONE:     done_count++;     break;
                 case RETRYING: blocked_count++;  break;  // RETRYING 也是阻塞状态
+                case SKIPPED:  skipped_count++;  break;  // SKIPPED 也是不可用状态
             }
         }
 
@@ -274,8 +298,8 @@ BT::NodeStatus GoalManagerAction::onTick(
         // 只有在冷却时间过后才执行自动重置
         if (is_deadlock && cooldown_elapsed >= auto_reset_cooldown_) {
             RCLCPP_WARN(node_->get_logger(),
-                        "Deadlock detected: idle=%u, blocked=%u, visiting=%u, done=%u (cooldown: %.1fs elapsed). Auto-resetting all non-DONE points to IDLE...",
-                        idle_count, blocked_count, visiting_count, done_count, cooldown_elapsed);
+                        "Deadlock detected: idle=%u, blocked=%u, visiting=%u, done=%u, skipped=%u (cooldown: %.1fs elapsed). Auto-resetting all non-DONE points to IDLE...",
+                        idle_count, blocked_count, visiting_count, done_count, skipped_count, cooldown_elapsed);
 
             // 自动重置所有非 DONE 的点为 IDLE
             for (auto & status_pair : goal_status_list_) {
@@ -373,11 +397,19 @@ BT::NodeStatus GoalManagerAction::onTick(
 
     RCLCPP_DEBUG(node_->get_logger(), "Goal ID %u locked with score %.2f", best_id, locked_goal_score_);
 
-    // Count IDLE and DONE points
-    uint32_t idle_count = 0, done_count = 0;
+    // Count IDLE, DONE, and SKIPPED points
+    uint32_t idle_count = 0, done_count = 0, skipped_count = 0;
     for (const auto & status_pair : goal_status_list_) {
         if (status_pair.second.status == IDLE) idle_count++;
         if (status_pair.second.status == DONE) done_count++;
+        if (status_pair.second.status == SKIPPED) skipped_count++;
+    }
+
+    // Log skipped points warning
+    if (skipped_count > 0) {
+        RCLCPP_WARN(node_->get_logger(),
+                   "Currently %u points are SKIPPED (unreachable after retries), they will be reset on next round",
+                   skipped_count);
     }
 
     // Prepare goal statuses for Blackboard sharing
@@ -405,6 +437,7 @@ BT::NodeStatus GoalManagerAction::onTick(
                 best_id, best_goal.pose.position.x, best_goal.pose.position.y,
                 it->second.score, cost_value);
 
+    RCLCPP_INFO(node_->get_logger(), "✅ GoalManager: Returning SUCCESS, next node (SendGoal) should execute now");
     return BT::NodeStatus::SUCCESS;
 }
 
@@ -456,8 +489,8 @@ uint32_t GoalManagerAction::findNearestPointConsideringRetry(
     for (const auto & status_pair : goal_status_list_) {
         const auto & status = status_pair.second;
 
-        // Consider RETRYING points (previously blocked but being retried)
-        if (status.status != RETRYING) {
+        // Consider RETRYING and SKIPPED points (SKIPPED can be reset and retried)
+        if (status.status != RETRYING && status.status != SKIPPED) {
             continue;
         }
 
@@ -556,19 +589,33 @@ void GoalManagerAction::checkAllPointsCompleted()
 
     bool all_done = true;
     uint32_t total_points = 0;
+    uint32_t skipped_count = 0;
 
     for (const auto & status_pair : goal_status_list_) {
-        if (status_pair.second.status != DONE) {
+        uint8_t status = status_pair.second.status;
+
+        // SKIPPED 也视为"完成"，允许循环继续（防止僵尸状态导致死锁）
+        if (status != DONE && status != SKIPPED) {
             all_done = false;
             break;
         }
-        total_points++;
+        if (status == DONE) total_points++;
+        if (status == SKIPPED) {
+            total_points++;
+            skipped_count++;
+        }
     }
 
     all_points_completed_ = (all_done && total_points > 0);
 
     if (all_points_completed_) {
-        RCLCPP_INFO(node_->get_logger(), "All %u observation points completed!", total_points);
+        if (skipped_count > 0) {
+            RCLCPP_WARN(node_->get_logger(),
+                       "All observation points processed! (%u done, %u skipped due to retry limit)",
+                       total_points - skipped_count, skipped_count);
+        } else {
+            RCLCPP_INFO(node_->get_logger(), "All %u observation points completed!", total_points);
+        }
     }
 }
 
@@ -587,6 +634,21 @@ bool GoalManagerAction::retryBlockedPoint(uint32_t point_id)
         return true;
     }
 
+    // 达到最大重试次数，强制跳过以防止死锁
+    RCLCPP_WARN(node_->get_logger(),
+               "🚫 Point ID %u exceeded max retries (%d), marking as SKIPPED to prevent deadlock",
+               point_id, visit_it->second.max_retries);
+
+    updateGoalStatus(point_id, SKIPPED);
+    resetFailCount(point_id);
+
+    // 释放锁（如果当前锁定了这个点）
+    if (locked_goal_id_ == point_id) {
+        RCLCPP_DEBUG(node_->get_logger(),
+                    "Releasing lock on skipped point ID %u", point_id);
+        releaseGoalLock();
+    }
+
     return false;
 }
 
@@ -603,6 +665,20 @@ bool GoalManagerAction::shouldResetAll() const
 
 void GoalManagerAction::resetAllPoints()
 {
+    // 🔄 冷却惩罚机制：记录最后完成的点，防止重置后立即返回
+    last_completed_point_id_ = 0;
+    for (const auto & status_pair : goal_status_list_) {
+        if (status_pair.second.status == DONE) {
+            last_completed_point_id_ = status_pair.first;
+            break;
+        }
+    }
+    if (last_completed_point_id_ != 0) {
+        last_complete_time_ = node_->now();
+        RCLCPP_INFO(node_->get_logger(), "🎯 Cooldown: Point ID %u was the last completed point, will be cooled for %.1f seconds",
+                    last_completed_point_id_, completed_point_cooldown_);
+    }
+
     for (auto & status_pair : goal_status_list_) {
         status_pair.second.status = IDLE;
         status_pair.second.last_visit_time = node_->now();
@@ -712,6 +788,21 @@ uint32_t GoalManagerAction::findBestPointWithHysteresis(
         // Only consider IDLE points
         if (status.status != IDLE) {
             continue;
+        }
+
+        // 🎯 冷却惩罚机制：跳过刚刚完成的点（在冷却期内）
+        if (last_completed_point_id_ != 0 && status.point_id == last_completed_point_id_) {
+            auto elapsed = (node_->now() - last_complete_time_).seconds();
+            if (elapsed < completed_point_cooldown_) {
+                RCLCPP_DEBUG(node_->get_logger(),
+                           "Point ID %u is in cooldown (%.1f / %.1f s), skipping to prevent immediate return",
+                           status.point_id, elapsed, completed_point_cooldown_);
+                continue;
+            } else {
+                RCLCPP_DEBUG(node_->get_logger(),
+                           "Point ID %u cooldown expired (%.1f s), now available for selection",
+                           status.point_id, elapsed);
+            }
         }
 
         // Find corresponding observation point

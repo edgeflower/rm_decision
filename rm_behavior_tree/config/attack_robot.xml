@@ -2,8 +2,6 @@
 <root BTCPP_format="4">
   <BehaviorTree ID="attack_robot">
     <ReactiveSequence>
-      <SubAllRobotHP topic_name="all_robot_hp"
-                     robot_hp="{robot_hp}"/>
       <GetLocation topic_name="/odometry"
                    robot_location="{robot_pose}"/>
       <SubArmors topic_name="/target_tracking"
@@ -25,123 +23,112 @@
                             current_confidence="{current_confidence}"
                             hysteresis_state="{hysteresis_state}"/>
       <WhileDoElse name="Evade when attacked">
-        <IsStatusOK message="{robot_status}"
-                    hp_threshold="100"
-                    heat_threshold="0"/>
-        <WhileDoElse name="Evade when attacked">
-          <IsDetectEnemy message="{filtered_target}"/>
-          <Sequence>
-            <RobotControl stop_gimbal_scan="True"
-                          chassis_spin_vel="0.0"
-                          gimbal_big_yaw_vel="0.0"/>
-            <ReactiveFallback>
-              <ReactiveSequence>
-                <CheckHysteresisState state="{hysteresis_state}"
-                                      expected_state="HIGH"/>
-                <ArmorToGoal target_message="{filtered_target}"
-                             robot_pose="{robot_pose}"
-                             offset_distance="2.0"
-                             min_confidence="0.4"
-                             rate_limit="0.2"
-                             goal_pose="{goal}"/>
-                <SendGoal goal_pose="{goal}"
-                          action_name="/navigate_to_pose"
-                          current_goal_id="{goal_id}"
-                          reached_goal_id="{reached_goal_id}"/>
-              </ReactiveSequence>
-              <ReactiveSequence>
-                <CheckHysteresisState state="{hysteresis_state}"
-                                      expected_state="GRACE_PERIOD"/>
-                <HoldPosition target="{filtered_target}"
-                              enabled="true"
-                              robot_pose="{robot_pose}"
-                              held_goal="{goal}"
-                              is_holding="{is_holding}"/>
-                <SendGoal goal_pose="{goal}"
-                          action_name="/navigate_to_pose"
-                          current_goal_id="{goal_id}"
-                          reached_goal_id="{reached_goal_id}"/>
-              </ReactiveSequence>
-              <Sequence>
-                <CheckHysteresisState state="{hysteresis_state}"
-                                      expected_state="LOW"/>
-                <GoalManager robot_pose="{robot_pose}"
-                             lethal_threshold="252"
-                             high_cost_threshold="200"
-                             visit_timeout="20.0"
-                             max_retries="1"
-                             reset_requested="false"
-                             hysteresis_threshold="0.7"
-                             arrival_distance="0.5"
-                             arrival_speed="0.2"
-                             stay_duration="1.0"
-                             min_exclusion_radius="2.0"
-                             robot_speed="{robot_speed}"
-                             auto_reset_cooldown="5.0"
-                             reached_goal_id="{reached_goal_id}"
-                             best_goal="{best_goal}"
-                             selected_id="{goal_id}"
-                             should_reset="{should_reset}"
-                             idle_count="{idle_count}"
-                             done_count="{done_count}"
-                             goal_statuses="{goal_statuses}"/>
-                <SendGoal goal_pose="{best_goal}"
-                          action_name="/navigate_to_pose"
-                          current_goal_id="{goal_id}"
-                          reached_goal_id="{reached_goal_id}"/>
-                <Wait duration="3.0"/>
-              </Sequence>
-            </ReactiveFallback>
-          </Sequence>
-          <Sequence name="NavigateAndVerify">
-            <RobotControl stop_gimbal_scan="True"
-                          chassis_spin_vel="0.0"
-                          gimbal_big_yaw_vel="40.0"/>
-            <GoalManager robot_pose="{robot_pose}"
-                         lethal_threshold="252"
-                         high_cost_threshold="200"
-                         visit_timeout="30.0"
-                         max_retries="2"
-                         reset_requested="{reset_requested}"
-                         hysteresis_threshold="0.7"
-                         arrival_distance="0.5"
-                         arrival_speed="0.2"
-                         stay_duration="1.0"
-                         min_exclusion_radius="2.0"
-                         robot_speed="{robot_speed}"
-                         auto_reset_cooldown="5.0"
-                         reached_goal_id="{reached_goal_id}"
-                         best_goal="{best_goal}"
-                         selected_id="{goal_id}"
-                         should_reset="{should_reset}"
-                         idle_count="{idle_count}"
-                         done_count="{done_count}"
-                         goal_statuses="{goal_statuses}"/>
-            <Sequence name="NavigateAndVerify">
-              <SendGoal name="NavigateToObservation"
-                        goal_pose="{best_goal}"
+        <IsDetectEnemy message="{filtered_target}"/>
+        <Sequence>
+          <RobotControl stop_gimbal_scan="True"
+                        chassis_spin_vel="0.0"
+                        gimbal_big_yaw_vel="0.0"/>
+          <ReactiveFallback>
+            <ReactiveSequence>
+              <CheckHysteresisState state="{hysteresis_state}"
+                                    expected_state="HIGH"/>
+              <ArmorToGoal target_message="{filtered_target}"
+                           robot_pose="{robot_pose}"
+                           offset_distance="2.0"
+                           min_confidence="0.4"
+                           rate_limit="0.2"
+                           goal_pose="{goal}"/>
+              <SendGoal goal_pose="{goal}"
+                        action_name="/navigate_to_pose"
+                        current_goal_id="-3"
+                        reached_goal_id="{reached_goal_id}"/>
+            </ReactiveSequence>
+            <ReactiveSequence>
+              <CheckHysteresisState state="{hysteresis_state}"
+                                    expected_state="GRACE_PERIOD"/>
+              <HoldPosition target="{filtered_target}"
+                            enabled="true"
+                            robot_pose="{robot_pose}"
+                            held_goal="{goal}"
+                            is_holding="{is_holding}"/>
+              <SendGoal goal_pose="{goal}"
+                        action_name="/navigate_to_pose"
+                        current_goal_id="-3"
+                        reached_goal_id="{reached_goal_id}"/>
+            </ReactiveSequence>
+            <Sequence>
+              <CheckHysteresisState state="{hysteresis_state}"
+                                    expected_state="LOW"/>
+              <GoalManager robot_pose="{robot_pose}"
+                           lethal_threshold="252"
+                           high_cost_threshold="200"
+                           visit_timeout="20.0"
+                           max_retries="1"
+                           reset_requested="false"
+                           hysteresis_threshold="0.7"
+                           arrival_distance="0.5"
+                           arrival_speed="0.2"
+                           stay_duration="1.0"
+                           min_exclusion_radius="2.0"
+                           robot_speed="{robot_speed}"
+                           auto_reset_cooldown="5.0"
+                           best_goal="{best_goal}"
+                           selected_id="{goal_id}"
+                           should_reset="{should_reset}"
+                           idle_count="{idle_count}"
+                           done_count="{done_count}"
+                           goal_statuses="{goal_statuses}"/>
+              <SendGoal goal_pose="{best_goal}"
                         action_name="/navigate_to_pose"
                         current_goal_id="{goal_id}"
                         reached_goal_id="{reached_goal_id}"/>
-              <RetryUntilSuccessful num_attempts="3">
-                <IsGoalReached name="VerifyGoalReached"
-                               goal_id="{goal_id}"
-                               goal_statuses="{goal_statuses}"
-                               check_current="true"
-                               current_goal_id="{goal_id}"
-                               allow_approximate="false"
-                               robot_pose="{robot_pose}"
-                               current_goal="{best_goal}"
-                               approximate_distance="0.2"/>
-              </RetryUntilSuccessful>
+              <Wait duration="3.0"/>
             </Sequence>
+          </ReactiveFallback>
+        </Sequence>
+        <Sequence name="NavigateAndVerify">
+          <RobotControl stop_gimbal_scan="True"
+                        chassis_spin_vel="0.0"
+                        gimbal_big_yaw_vel="40.0"/>
+          <GoalManager robot_pose="{robot_pose}"
+                       lethal_threshold="252"
+                       high_cost_threshold="200"
+                       visit_timeout="30.0"
+                       max_retries="2"
+                       reset_requested="{reset_requested}"
+                       hysteresis_threshold="0.7"
+                       arrival_distance="0.5"
+                       arrival_speed="0.2"
+                       stay_duration="1.0"
+                       min_exclusion_radius="2.0"
+                       robot_speed="{robot_speed}"
+                       auto_reset_cooldown="5.0"
+                       reached_goal_id="{reached_goal_id}"
+                       best_goal="{best_goal}"
+                       selected_id="{goal_id}"
+                       should_reset="{should_reset}"
+                       idle_count="{idle_count}"
+                       done_count="{done_count}"
+                       goal_statuses="{goal_statuses}"/>
+          <Sequence name="NavigateAndVerify">
+            <SendGoal name="NavigateToObservation"
+                      goal_pose="{best_goal}"
+                      action_name="/navigate_to_pose"
+                      current_goal_id="{goal_id}"
+                      reached_goal_id="{reached_goal_id}"/>
+            <RetryUntilSuccessful num_attempts="3">
+              <IsGoalReached name="VerifyGoalReached"
+                             goal_id="{goal_id}"
+                             goal_statuses="{goal_statuses}"
+                             check_current="true"
+                             current_goal_id="{goal_id}"
+                             allow_approximate="false"
+                             robot_pose="{robot_pose}"
+                             current_goal="{best_goal}"
+                             approximate_distance="0.2"/>
+            </RetryUntilSuccessful>
           </Sequence>
-        </WhileDoElse>
-        <SendGoal name="NavigateToObservation"
-                  goal_pose="0.0; 0.0; 0.0; 0.0;0.0;0.0;1.0"
-                  action_name="/navigate_to_pose"
-                  current_goal_id="{current_goal_id}"
-                  reached_goal_id="{reached_goal_id}"/>
+        </Sequence>
       </WhileDoElse>
     </ReactiveSequence>
   </BehaviorTree>
@@ -282,15 +269,6 @@
       <input_port name="approximate_distance"
                   default="0.2"/>
     </Condition>
-    <Action ID="IsStatusOK"
-            editable="true">
-      <input_port name="message"
-                  default="{robot_status}"/>
-      <input_port name="hp_threshold"
-                  default="100"/>
-      <input_port name="heat_threshold"
-                  default="350"/>
-    </Action>
     <Action ID="RobotControl">
       <input_port name="stop_gimbal_scan"
                   default="True"/>
@@ -308,13 +286,6 @@
                   default="{goal_id}"/>
       <output_port name="reached_goal_id"
                    default="{reached_goal_id}"/>
-    </Action>
-    <Action ID="SubAllRobotHP"
-            editable="true">
-      <input_port name="topic_name"
-                  default="robot_hp"/>
-      <output_port name="robot_hp"
-                   default="{robot_hp}"/>
     </Action>
     <Action ID="SubArmors"
             editable="true">

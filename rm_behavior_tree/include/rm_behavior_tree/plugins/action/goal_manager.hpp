@@ -25,14 +25,15 @@ enum GoalStatusEnum : uint8_t {
     VISITING = 1,
     DONE = 2,
     BLOCKED = 3,
-    RETRYING = 4
+    RETRYING = 4,
+    SKIPPED = 5  // 僵尸状态：重试次数超限后被跳过，视为完成以防止死锁
 };
 
 // System Goal IDs for special tasks (negative values to avoid conflict with patrol points)
 enum SystemGoalID : int32_t {
     SIGNAL_IDLE = -1,    // 空闲/握手清空信号
     GO_HOME = -2,        // 回家补血任务
-    MANUAL_CONTROL = -3, // 手动接管任务
+    MANUAL_CONTROL = -3, // 手动接管任务  // 视觉发现敌人追击任务也可以用这个 ID，具体任务类型可以通过日志区分
     EMERGENCY_STOP = -4  // 紧急停止任务
 };
 
@@ -91,6 +92,7 @@ public:
             BT::InputPort<double>("min_exclusion_radius", 1.0, "Minimum radius to exclude near points (meters)"),
             BT::InputPort<double>("robot_speed", 0.0, "Current robot speed for semantic arrival (m/s)"),
             BT::InputPort<double>("auto_reset_cooldown", 5.0, "Minimum time between auto-resets for deadlock (seconds)"),
+            BT::InputPort<double>("completed_point_cooldown", 10.0, "Cooldown time for last completed point to prevent immediate return (seconds)"),
             BT::InputPort<int32_t>("reached_goal_id", SystemGoalID::SIGNAL_IDLE, "Handshake ID from SendGoal: patrol (>0) or system task (<0)"),
             BT::OutputPort<geometry_msgs::msg::PoseStamped>("best_goal"),
             BT::OutputPort<uint32_t>("selected_id"),
@@ -145,6 +147,11 @@ private:
     // Auto-reset deadlock recovery
     double auto_reset_cooldown_;        // Minimum time between auto-resets (seconds)
     rclcpp::Time last_auto_reset_time_; // Last time auto-reset was triggered
+
+    // Completed point cooldown mechanism (prevent immediate return)
+    uint32_t last_completed_point_id_;  // Last point that was completed
+    rclcpp::Time last_complete_time_;     // Time when last point was completed
+    double completed_point_cooldown_;     // Cooldown time for last completed point (seconds)
 
     // Helper functions
     uint32_t findNearestIdlePoint(const geometry_msgs::msg::PoseStamped & robot_pose);

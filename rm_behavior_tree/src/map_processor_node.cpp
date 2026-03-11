@@ -36,6 +36,9 @@ MapProcessorNode::MapProcessorNode(const rclcpp::NodeOptions & options)
     // Ray coverage parameters
     this->declare_parameter("min_coverage_ratio", 0.5);
 
+    // Observation point filtering
+    this->declare_parameter("score_threshold", 0.3);  // 默认降低到 0.3，增加观察点数量
+
     // Get parameters
     map_topic_ = this->get_parameter("map_topic").as_string();
     sample_step_ = this->get_parameter("sample_step").as_double();
@@ -51,6 +54,7 @@ MapProcessorNode::MapProcessorNode(const rclcpp::NodeOptions & options)
     treat_unknown_as_obstacle_ = this->get_parameter("treat_unknown_as_obstacle").as_bool();
     use_bresenham_ray_casting_ = this->get_parameter("use_bresenham_ray_casting").as_bool();
     min_coverage_ratio_ = this->get_parameter("min_coverage_ratio").as_double();
+    score_threshold_ = this->get_parameter("score_threshold").as_double();
 
     RCLCPP_INFO(this->get_logger(), "Map Processor Node started with params:");
     RCLCPP_INFO(this->get_logger(), "  map_topic: %s", map_topic_.c_str());
@@ -69,6 +73,8 @@ MapProcessorNode::MapProcessorNode(const rclcpp::NodeOptions & options)
     RCLCPP_INFO(this->get_logger(), "Performance:");
     RCLCPP_INFO(this->get_logger(), "  use_bresenham_ray_casting: %s", use_bresenham_ray_casting_ ? "true" : "false");
     RCLCPP_INFO(this->get_logger(), "  min_coverage_ratio: %.2f", min_coverage_ratio_);
+    RCLCPP_INFO(this->get_logger(), "Observation Point Filtering:");
+    RCLCPP_INFO(this->get_logger(), "  score_threshold: %.2f (points with score <= threshold are filtered out)", score_threshold_);
 
     // Create subscription and publisher
     map_sub_ = this->create_subscription<nav_msgs::msg::OccupancyGrid>(
@@ -171,13 +177,25 @@ void MapProcessorNode::processAndPublishObservationPoints()
         }
     }
 
+    // Debug: 显示分数分布
+    RCLCPP_INFO(this->get_logger(), "Score distribution (threshold=%.2f):", score_threshold_);
+    for (size_t idx : keep_indices) {
+        const auto & pt = grid_points[idx];
+        double world_x, world_y;
+        mapToWorld(current_map_->info, static_cast<int>(pt.x), static_cast<int>(pt.y), world_x, world_y);
+        double score = scores[idx];
+        const char* status = (score > score_threshold_) ? "[KEEP]" : "[FILTER]";
+        RCLCPP_INFO(this->get_logger(), "  [%zu] (%.2f, %.2f) score=%.3f %s",
+                    idx, world_x, world_y, score, status);
+    }
+
     // Step 6: Filter and publish observation points
     uint32_t point_id = 0;
     for (size_t idx : keep_indices) {
         double score = scores[idx];
 
-        // Only include points with reasonable visibility
-        if (score > 0.5) {
+        // Only include points with reasonable visibility (using configurable threshold)
+        if (score > score_threshold_) {
             const auto & pt = grid_points[idx];
             double world_x, world_y;
             mapToWorld(current_map_->info, static_cast<int>(pt.x), static_cast<int>(pt.y),

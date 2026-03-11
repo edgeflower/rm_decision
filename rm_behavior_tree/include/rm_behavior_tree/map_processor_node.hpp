@@ -47,6 +47,9 @@ private:
     // Ray coverage parameters
     double min_coverage_ratio_;
 
+    // Observation point filtering
+    double score_threshold_;  // Minimum score for an observation point to be published
+
     // Map data
     nav_msgs::msg::OccupancyGrid::SharedPtr current_map_;
     cv::Mat processed_map_;
