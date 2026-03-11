@@ -69,23 +69,38 @@ void SendGoalAction::onHalt()
 
 BT::NodeStatus SendGoalAction::onResultReceived(const WrappedResult & wr)
 {
+    // 握手机制：准备目标 ID 变量（放在 switch 外部避免跳过初始化）
+    uint32_t current_goal_id = 0;
+    auto goal_id_result = getInput<uint32_t>("current_goal_id");
+    bool has_goal_id = goal_id_result.has_value();
+
+    if (has_goal_id) {
+        current_goal_id = goal_id_result.value();
+    }
+
     switch (wr.code) {
         case rclcpp_action::ResultCode::SUCCEEDED:
             RCLCPP_INFO(node_->get_logger(), "导航成功完成！");
+
+            // 握手机制：输出成功到达的目标 ID
+            if (has_goal_id && current_goal_id > 0) {
+                setOutput("reached_goal_id", static_cast<int32_t>(current_goal_id));
+                RCLCPP_INFO(node_->get_logger(), "Handshake: reporting reached_goal_id=%u", current_goal_id);
+            } else {
+                RCLCPP_WARN(node_->get_logger(), "Handshake: no valid current_goal_id available");
+                setOutput("reached_goal_id", static_cast<int32_t>(-1));
+            }
+
             return BT::NodeStatus::SUCCESS;
-            break;
         case rclcpp_action::ResultCode::ABORTED:
             RCLCPP_WARN(node_->get_logger(), "导航目标被中止！");
             return BT::NodeStatus::FAILURE;
-            break;
         case rclcpp_action::ResultCode::CANCELED:
             RCLCPP_WARN(node_->get_logger(), "导航目标被取消！");
             return BT::NodeStatus::FAILURE;
-            break;
         default:
             RCLCPP_ERROR(node_->get_logger(), "未知导航结果状态");
             return BT::NodeStatus::FAILURE;
-            break;
     }
 }
 

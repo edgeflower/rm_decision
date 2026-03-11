@@ -20,7 +20,9 @@ public:
     {
         return {
             BT::InputPort<geometry_msgs::msg::PoseStamped>("goal_pose"),
-            BT::InputPort<std::string>("action_name")
+            BT::InputPort<std::string>("action_name"),
+            BT::InputPort<uint32_t>("current_goal_id", 0, "Current goal ID for handshake mechanism"),
+            BT::OutputPort<int32_t>("reached_goal_id", "Output goal ID when navigation succeeds (for handshake)")
         };
     }
 

@@ -83,6 +83,7 @@ public:
             BT::InputPort<double>("min_exclusion_radius", 1.0, "Minimum radius to exclude near points (meters)"),
             BT::InputPort<double>("robot_speed", 0.0, "Current robot speed for semantic arrival (m/s)"),
             BT::InputPort<double>("auto_reset_cooldown", 5.0, "Minimum time between auto-resets for deadlock (seconds)"),
+            BT::InputPort<int32_t>("reached_goal_id", -1, "Handshake ID from SendGoal (cleared to -1 after matching)"),
             BT::OutputPort<geometry_msgs::msg::PoseStamped>("best_goal"),
             BT::OutputPort<uint32_t>("selected_id"),
             BT::OutputPort<bool>("should_reset", "True if all points completed"),

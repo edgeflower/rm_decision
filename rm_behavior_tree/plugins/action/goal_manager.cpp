@@ -77,6 +77,40 @@ BT::NodeStatus GoalManagerAction::onTick(
 
     RCLCPP_INFO(node_->get_logger(), "Received %zu observation points", last_msg->points.size());
 
+    // ========== 握手机制：优先级最高 ==========
+    // 在任何其他检测之前，先检查 SendGoal 是否报告了到达
+    int32_t reached_goal_id = -1;
+    auto reached_result = getInput<int32_t>("reached_goal_id");
+    if (reached_result.has_value()) {
+        reached_goal_id = reached_result.value();
+    }
+
+    if (reached_goal_id > 0) {
+        // 检查是否匹配当前锁定的目标
+        if (locked_goal_id_ != 0 && static_cast<uint32_t>(reached_goal_id) == locked_goal_id_) {
+            RCLCPP_INFO(node_->get_logger(),
+                        "Handshake SUCCESS: received reached_goal_id=%u matches locked_goal_id_, marking as DONE",
+                        locked_goal_id_);
+
+            updateGoalStatus(locked_goal_id_, DONE);
+            resetFailCount(locked_goal_id_);
+            releaseGoalLock();
+
+            // 清空握手信号，防止重复处理（逻辑锁）
+            setOutput("reached_goal_id", static_cast<int32_t>(-1));
+        } else if (locked_goal_id_ == 0) {
+            RCLCPP_WARN(node_->get_logger(),
+                        "Handshake: received reached_goal_id=%d but no goal is locked, clearing",
+                        reached_goal_id);
+            setOutput("reached_goal_id", static_cast<int32_t>(-1));
+        } else {
+            // reached_goal_id != locked_goal_id_，可能是过期的信号
+            RCLCPP_DEBUG(node_->get_logger(),
+                        "Handshake: received reached_goal_id=%d does not match locked_goal_id=%u, ignoring",
+                        reached_goal_id, locked_goal_id_);
+        }
+    }
+
     // Get robot pose and speed from input port
     geometry_msgs::msg::PoseStamped robot_pose;
     double current_speed = 0.0;
@@ -320,6 +354,10 @@ BT::NodeStatus GoalManagerAction::onTick(
     setOutput("idle_count", idle_count);
     setOutput("done_count", done_count);
     setOutput("goal_statuses", goal_statuses);
+
+    // 握手机制：切换新目标时清空握手信号，确保信号新鲜度
+    setOutput("reached_goal_id", static_cast<int32_t>(-1));
+    RCLCPP_DEBUG(node_->get_logger(), "Handshake: cleared reached_goal_id for new goal %u", best_id);
 
     RCLCPP_INFO(node_->get_logger(), "Selected goal ID %u at (%.2f, %.2f) with score %.2f, cost: %.2f",
                 best_id, best_goal.pose.position.x, best_goal.pose.position.y,
