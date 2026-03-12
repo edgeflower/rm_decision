@@ -64,6 +64,7 @@ BT::NodeStatus ConfidenceHysteresis::checkConfidenceHysteresis()
                 RCLCPP_DEBUG(rclcpp::get_logger("ConfidenceHysteresis"),
                              "State: HIGH (confidence: %.2f)", confidence);
             }
+            setOutput("hysteresis_state", stateToString(current_state_));
             return BT::NodeStatus::SUCCESS;
 
         case State::GRACE_PERIOD:
@@ -76,6 +77,7 @@ BT::NodeStatus ConfidenceHysteresis::checkConfidenceHysteresis()
                             "State: GRACE_PERIOD -> HIGH (confidence recovered: %.2f)",
                             confidence);
 
+                setOutput("hysteresis_state", stateToString(current_state_));
                 return BT::NodeStatus::SUCCESS;
             }
 
@@ -88,6 +90,7 @@ BT::NodeStatus ConfidenceHysteresis::checkConfidenceHysteresis()
                             "State: GRACE_PERIOD -> LOW (grace period ended: %.1fs, final confidence: %.2f)",
                             elapsed, confidence);
 
+                setOutput("hysteresis_state", stateToString(current_state_));
                 return BT::NodeStatus::FAILURE;
             }
 
@@ -97,6 +100,7 @@ BT::NodeStatus ConfidenceHysteresis::checkConfidenceHysteresis()
                         getGracePeriodElapsed(now), grace_period_, confidence);
 
             // 观察期内继续返回 SUCCESS（保持追逐模式）
+            setOutput("hysteresis_state", stateToString(current_state_));
             return BT::NodeStatus::SUCCESS;
 
         case State::LOW_CONFIDENCE:
@@ -110,13 +114,14 @@ BT::NodeStatus ConfidenceHysteresis::checkConfidenceHysteresis()
                             "State: LOW -> HIGH (confidence recovered: %.2f)",
                             confidence);
 
+                setOutput("hysteresis_state", stateToString(current_state_));
                 return BT::NodeStatus::SUCCESS;
             }
 
             RCLCPP_DEBUG(rclcpp::get_logger("ConfidenceHysteresis"),
                         "State: LOW (confidence: %.2f)", confidence);
 
-            setOutput("hysteresis_state", std::string("LOW"));
+            setOutput("hysteresis_state", stateToString(current_state_));
             return BT::NodeStatus::FAILURE;
     }
 

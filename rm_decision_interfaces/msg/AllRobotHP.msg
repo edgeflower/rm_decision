@@ -11,6 +11,6 @@ uint16 blue_1_robot_hp
 uint16 blue_2_robot_hp
 uint16 blue_3_robot_hp
 uint16 blue_4_robot_hp
-uint16 blue_7_robot_hp
+uint16 blue_7_robot_hp 
 uint16 blue_outpost_hp
 uint16 blue_base_hp

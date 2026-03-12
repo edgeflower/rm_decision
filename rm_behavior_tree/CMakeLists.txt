@@ -198,6 +198,11 @@ ament_auto_add_library(check_hysteresis_state SHARED
  plugins/condition/check_hysteresis_state.cpp)
 add_target_dependencies(check_hysteresis_state)
 
+# Is Hp Ok Condition Node
+ament_auto_add_library(is_hp_ok SHARED
+  plugins/condition/is_hp_ok.cpp)
+add_target_dependencies(is_hp_ok)
+
 # control
 ament_auto_add_library(decision_switch SHARED
   plugins/control/decision_switch.cpp)

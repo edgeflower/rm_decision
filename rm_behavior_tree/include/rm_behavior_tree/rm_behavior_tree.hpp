@@ -132,6 +132,7 @@ private:
             "is_attacked",
             "is_friend_ok",
             "is_outpost_ok",
+            "is_hp_ok",
             "get_current_location",
             "move_around",
             "print_message",

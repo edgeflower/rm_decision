@@ -2,120 +2,90 @@
 <root BTCPP_format="4"
       main_tree_to_execute="attack_robot">
   <BehaviorTree ID="PatrolObservationPoints">
-    <Sequence name="PatrolSequence">
+    <AsyncSequence>
       <RobotControl stop_gimbal_scan="True"
                     chassis_spin_vel="0.0"
-                    gimbal_big_yaw_vel="40.0"/>
-      <SendMyGoal name="NavigateToObservation"
-                  my_goal_pose="7.70342;6.30384;0;0;0;-0.530557;0.847649"
-                  action_name="/navigate_to_pose"/>
-      <SendMyGoal name="NavigateToObservation"
-                  my_goal_pose="0.831862;6.28261;0;0;0;-0.406026;0.913861"
-                  action_name="/navigate_to_pose"/>
-      <SendMyGoal name="NavigateToObservation"
-                  my_goal_pose="2.93173;4.10752;0;0;0;-0.598128;0.801401"
-                  action_name="/navigate_to_pose"/>
-      <SendMyGoal name="NavigateToObservation"
-                  my_goal_pose="7.55072;2.4705;0;0;0;-0.620193;0.78445"
-                  action_name="/navigate_to_pose"/>
-      <SendMyGoal name="NavigateToObservation"
-                  my_goal_pose="-0.335534;0.580256;0;0;0;-0.568031;0.823007"
-                  action_name="/navigate_to_pose"/>
-    </Sequence>
+                    gimbal_big_yaw_vel="35.0"/>
+      <Sequence name="PatrolSequence">
+        <SendMyGoal name="NavigateToObservation"
+                    my_goal_pose="7.55348;6.31452;0;0;0;-0.52001;0.85416"
+                    action_name="/navigate_to_pose"/>
+        <SendMyGoal name="NavigateToObservation"
+                    my_goal_pose="1.77281;6.15745;0;0;0;-0.507379;0.861723"
+                    action_name="/navigate_to_pose"/>
+        <SendMyGoal name="NavigateToObservation"
+                    my_goal_pose="0.0186658;0.893684;0;0;0;-0.271322;0.962489"
+                    action_name="/navigate_to_pose"/>
+        <SendMyGoal name="NavigateToObservation"
+                    my_goal_pose="5.92473;2.05222;0;0;0;0.105351;0.994435"
+                    action_name="/navigate_to_pose"/>
+        <SendMyGoal name="NavigateToObservation"
+                    my_goal_pose="0.193413;4.22456;0;0;0;-0.544993;0.83844"
+                    action_name="/navigate_to_pose"/>
+      </Sequence>
+    </AsyncSequence>
   </BehaviorTree>
 
   <BehaviorTree ID="attack_robot">
     <Sequence>
-      <ReactiveSequence name="DataAcquisition">
-        <SubArmors topic_name="/target_tracking"
-                   armors="{armors}"/>
-        <EnemyPositionFilter enemy_position="{armors}"
-                             alpha="0.2"
-                             max_distance="1.0"
-                             history_size="7"
-                             zero_threshold="0.1"
-                             min_output_interval="0.1"
-                             filtered_position="{filtered_target}"/>
-      </ReactiveSequence>
-      <WhileDoElse>
-        <EnemyPositionFilter enemy_position="{armors}"
-                             alpha="0.2"
-                             max_distance="1.0"
-                             history_size="7"
-                             zero_threshold="0.1"
-                             min_output_interval="0.1"
-                             filtered_position="{filtered_target}"/>
-        <Sequence>
-          <ConfidenceHysteresis target="{filtered_target}"
-                                upper_threshold="0.5"
-                                lower_threshold="0.2"
-                                grace_period="2.5"
-                                enable_hold_position="true"
-                                current_confidence="{current_confidence}"
-                                hysteresis_state="{hysteresis_state}"/>
-          <ReactiveFallback name="GimbalControl">
-            <Sequence>
-              <CheckHysteresisState state="{hysteresis_state}"
-                                    expected_state="HIGH"/>
-              <RobotControl stop_gimbal_scan="True"
-                            chassis_spin_vel="0.0"
-                            gimbal_big_yaw_vel="0.0"/>
-            </Sequence>
-            <Sequence>
-              <CheckHysteresisState state="{hysteresis_state}"
-                                    expected_state="GRACE_PERIOD"/>
-              <RobotControl stop_gimbal_scan="True"
-                            chassis_spin_vel="0.0"
-                            gimbal_big_yaw_vel="0.0"/>
-            </Sequence>
-            <RobotControl stop_gimbal_scan="True"
-                          chassis_spin_vel="0.0"
-                          gimbal_big_yaw_vel="40.0"/>
-          </ReactiveFallback>
-          <ReactiveFallback name="NavigationDecision">
-            <ReactiveSequence>
-              <CheckHysteresisState state="{hysteresis_state}"
-                                    expected_state="HIGH"/>
-              <ArmorToGoal target_message="{filtered_target}"
-                           goal_pose="{goal}"/>
-              <SendGoal name="ChaseEnemy"
-                        goal_pose="{goal}"
-                        action_name="/navigate_to_pose"
-                        min_goal_distance="0.5"
-                        current_goal_id="-2"
-                        reached_goal_id="{attack_reached_goal_id}"/>
-            </ReactiveSequence>
-            <ReactiveSequence>
-              <CheckHysteresisState state="{hysteresis_state}"
-                                    expected_state="GRACE_PERIOD"/>
-              <HoldPosition target="{filtered_target}"
-                            enabled="true"
-                            robot_pose="{robot_pose}"
-                            held_goal="{goal}"
-                            is_holding="{is_holding}"/>
-              <SendGoal name="HoldCurrentPosition"
-                        goal_pose="{goal}"
-                        action_name="/navigate_to_pose"
-                        min_goal_distance="0.5"
-                        current_goal_id="-2"
-                        reached_goal_id="{hold_reached_goal_id}"/>
-            </ReactiveSequence>
-            <ReactiveSequence>
-              <CheckHysteresisState state="{hysteresis_state}"
-                                    expected_state="LOW"/>
-              <AbortNavigation action_name="/navigate_to_pose"/>
-              <SubTree ID="PatrolObservationPoints"
-                       goal_pose=""/>
-            </ReactiveSequence>
-          </ReactiveFallback>
-        </Sequence>
-        <Sequence>
+      <SubArmors topic_name="/target_tracking"
+                 armors="{armors}"/>
+      <EnemyPositionFilter enemy_position="{armors}"
+                           alpha="0.2"
+                           max_distance="1.0"
+                           history_size="7"
+                           zero_threshold="0.1"
+                           min_output_interval="0.1"
+                           filtered_position="{filtered_target}"/>
+      <ConfidenceHysteresis target="{filtered_target}"
+                            upper_threshold="0.5"
+                            lower_threshold="0.2"
+                            grace_period="2.5"
+                            enable_hold_position="true"
+                            current_confidence="{current_confidence}"
+                            hysteresis_state="{hysteresis_state}"/>
+      <ReactiveFallback name="ModeSelector">
+        <ReactiveSequence>
+          <CheckHysteresisState state="{hysteresis_state}"
+                                expected_state="HIGH"/>
+          <ArmorToGoal target_message="{filtered_target}"
+                       goal_pose="{goal}"/>
+          <SendGoal name="ChaseEnemy"
+                    goal_pose="{goal}"
+                    action_name="/navigate_to_pose"
+                    min_goal_distance="0.5"
+                    current_goal_id="-2"
+                    reached_goal_id="{attack_reached_goal_id}"/>
+          <RobotControl stop_gimbal_scan="True"
+                        chassis_spin_vel="0.0"
+                        gimbal_big_yaw_vel="0.0"/>
+        </ReactiveSequence>
+        <ReactiveSequence>
+          <CheckHysteresisState state="{hysteresis_state}"
+                                expected_state="GRACE_PERIOD"/>
+          <HoldPosition target="{filtered_target}"
+                        enabled="true"
+                        robot_pose="{robot_pose}"
+                        held_goal="{goal}"
+                        is_holding="{is_holding}"/>
+          <SendGoal name="HoldCurrentPosition"
+                    goal_pose="{goal}"
+                    action_name="/navigate_to_pose"
+                    min_goal_distance="0.5"
+                    current_goal_id="-2"
+                    reached_goal_id="{hold_reached_goal_id}"/>
+          <RobotControl stop_gimbal_scan="True"
+                        chassis_spin_vel="0.0"
+                        gimbal_big_yaw_vel="0.0"/>
+        </ReactiveSequence>
+        <ReactiveSequence>
+          <CheckHysteresisState state="{hysteresis_state}"
+                                expected_state="LOW"/>
           <AbortNavigation action_name="/navigate_to_pose"/>
           <SubTree ID="PatrolObservationPoints"
-                   goal_pose=""
-                   _autoremap="false"/>
-        </Sequence>
-      </WhileDoElse>
+                   goal_pose=""/>
+        </ReactiveSequence>
+      </ReactiveFallback>
     </Sequence>
   </BehaviorTree>
 
