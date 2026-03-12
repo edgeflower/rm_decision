@@ -21,8 +21,9 @@ public:
         return {
             BT::InputPort<geometry_msgs::msg::PoseStamped>("goal_pose"),
             BT::InputPort<std::string>("action_name"),
-            BT::InputPort<uint32_t>("current_goal_id", 0, "Current goal ID for handshake mechanism"),
-            BT::OutputPort<int32_t>("reached_goal_id", "Output goal ID when navigation succeeds (for handshake)")
+            BT::InputPort<int32_t>("current_goal_id", 0, "Current goal ID for handshake mechanism"),
+            BT::OutputPort<int32_t>("reached_goal_id", "Output goal ID when navigation succeeds (for handshake)"),
+            BT::InputPort<double>("min_goal_distance", 0.5, "最小目标变化距离(米)，默认0.5m")
         };
     }
 
@@ -37,6 +38,11 @@ public:
 
     private:
     std::string action_name_;
+
+    // 方案3: 目标变化阈值检测，防止频繁发送微小变化的目标
+    geometry_msgs::msg::PoseStamped last_goal_;
+    bool has_last_goal_ = false;
+    double min_goal_distance_ = 0.5;  // 默认0.5米
 };
 }
 

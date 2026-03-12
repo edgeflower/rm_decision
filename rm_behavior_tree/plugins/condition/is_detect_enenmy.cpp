@@ -13,7 +13,7 @@ BT::NodeStatus IsDetectEnemyAction::detectEnemyStatus(){
         return BT::NodeStatus::FAILURE;
     }
 
-    if(msg->tracking_status == 3 || msg->tracking_status == 4){
+    if(msg->tracking_status == 2 || msg->tracking_status == 3){
         std::cout<< "检测到敌方机器人" << '\n';
         return BT::NodeStatus::SUCCESS;
     } else {

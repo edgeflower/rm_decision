@@ -47,7 +47,8 @@ class EnemyPositionFilter : public BT::SyncActionNode
                 // Single frame jump of 10m is definitely misidentification
                 BT::InputPort<double>("max_distance", 1.5, "异常值阈值(米)，默认1.5 (RoboMaster 3v3)"),
                 BT::InputPort<int>("history_size", 5, "历史数据窗口大小"),
-                BT::InputPort<double>("zero_threshold", 0.1, "0值判断阈值(米)，小于此值视为无效检测")
+                BT::InputPort<double>("zero_threshold", 0.1, "0值判断阈值(米)，小于此值视为无效检测"),
+                BT::InputPort<double>("min_output_interval", 0.1, "最小输出间隔(秒)，默认0.1 (10Hz)")
             };
         }
 
@@ -67,6 +68,10 @@ class EnemyPositionFilter : public BT::SyncActionNode
         // 指数移动平均滤波器
         double alpha_ = 0.3;  // 滤波系数，0.3 = 平滑响应与实时性的平衡
         bool initialized_ = false;
+
+        // 输出频率限制 (方案1)
+        rclcpp::Time last_output_time_{0, 0, RCL_ROS_TIME};
+        double min_output_interval_ = 0.1;  // 默认100ms (10Hz)
 
         // 历史数据用于异常检测
         struct PositionHistory {

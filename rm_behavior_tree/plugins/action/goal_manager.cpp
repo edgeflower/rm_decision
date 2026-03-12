@@ -102,7 +102,7 @@ BT::NodeStatus GoalManagerAction::onTick(
         // ========== 导航失败信号：负数 < -1000 ==========
         // 格式：-(1000 + point_id)，例如：点5失败 → -1005
         if (reached_goal_id < -1000) {
-            uint32_t failed_point_id = -reached_goal_id - 1000;
+            int32_t failed_point_id = -reached_goal_id - 1000;
 
             if (locked_goal_id_ != 0 && failed_point_id == locked_goal_id_) {
                 RCLCPP_WARN(node_->get_logger(),
@@ -126,7 +126,7 @@ BT::NodeStatus GoalManagerAction::onTick(
         }
         else if (reached_goal_id > 0) {
             // ========== 正数 ID：巡逻点握手 ==========
-            if (locked_goal_id_ != 0 && static_cast<uint32_t>(reached_goal_id) == locked_goal_id_) {
+            if (locked_goal_id_ != 0 && static_cast<int32_t>(reached_goal_id) == locked_goal_id_) {
                 RCLCPP_INFO(node_->get_logger(),
                             "🤝 Handshake SUCCESS: patrol point %u completed, marking as DONE",
                             locked_goal_id_);
@@ -265,7 +265,7 @@ BT::NodeStatus GoalManagerAction::onTick(
     // Try to find best point with hysteresis (soft lock)
     RCLCPP_DEBUG(node_->get_logger(), "Finding best point with hysteresis... (robot_pose: %.2f, %.2f)",
                 robot_pose.pose.position.x, robot_pose.pose.position.y);
-    uint32_t best_id = findBestPointWithHysteresis(robot_pose);
+    int32_t best_id = findBestPointWithHysteresis(robot_pose);
     RCLCPP_DEBUG(node_->get_logger(), "Best ID from hysteresis: %u", best_id);
 
     // If no IDLE points, check if we can retry blocked points
@@ -285,7 +285,7 @@ BT::NodeStatus GoalManagerAction::onTick(
     // All points are done - auto reset for continuous patrol loop
     if (best_id == 0 && all_points_completed_) {
         // 统计完成的点数
-        uint32_t done_count = 0;
+        int32_t done_count = 0;
         for (const auto & status_pair : goal_status_list_) {
             if (status_pair.second.status == DONE) {
                 done_count++;
@@ -319,7 +319,7 @@ BT::NodeStatus GoalManagerAction::onTick(
     // No available points but not all completed - check for deadlock
     if (best_id == 0) {
         // Count status of all points
-        uint32_t idle_count = 0, blocked_count = 0, visiting_count = 0, done_count = 0, skipped_count = 0;
+        int32_t idle_count = 0, blocked_count = 0, visiting_count = 0, done_count = 0, skipped_count = 0;
         for (const auto & status_pair : goal_status_list_) {
             switch (status_pair.second.status) {
                 case IDLE:     idle_count++;     break;
@@ -451,7 +451,7 @@ BT::NodeStatus GoalManagerAction::onTick(
     RCLCPP_DEBUG(node_->get_logger(), "Goal ID %u locked with score %.2f", best_id, locked_goal_score_);
 
     // Count IDLE, DONE, and SKIPPED points
-    uint32_t idle_count = 0, done_count = 0, skipped_count = 0;
+    int32_t idle_count = 0, done_count = 0, skipped_count = 0;
     for (const auto & status_pair : goal_status_list_) {
         if (status_pair.second.status == IDLE) idle_count++;
         if (status_pair.second.status == DONE) done_count++;
@@ -493,11 +493,11 @@ BT::NodeStatus GoalManagerAction::onTick(
     return BT::NodeStatus::SUCCESS;
 }
 
-uint32_t GoalManagerAction::findNearestIdlePoint(
+int32_t GoalManagerAction::findNearestIdlePoint(
     const geometry_msgs::msg::PoseStamped & robot_pose)
 {
     double min_dist = std::numeric_limits<double>::max();
-    uint32_t best_id = 0;
+    int32_t best_id = 0;
 
     for (const auto & status_pair : goal_status_list_) {
         const auto & status = status_pair.second;
@@ -532,11 +532,11 @@ uint32_t GoalManagerAction::findNearestIdlePoint(
     return best_id;
 }
 
-uint32_t GoalManagerAction::findNearestPointConsideringRetry(
+int32_t GoalManagerAction::findNearestPointConsideringRetry(
     const geometry_msgs::msg::PoseStamped & robot_pose)
 {
     double min_dist = std::numeric_limits<double>::max();
-    uint32_t best_id = 0;
+    int32_t best_id = 0;
 
     for (const auto & status_pair : goal_status_list_) {
         const auto & status = status_pair.second;
@@ -598,7 +598,7 @@ GoalManagerAction::CostmapStatus GoalManagerAction::checkCostmapStatus(
     return REACHABLE;
 }
 
-void GoalManagerAction::updateGoalStatus(uint32_t point_id, GoalStatusEnum status)
+void GoalManagerAction::updateGoalStatus(int32_t point_id, GoalStatusEnum status)
 {
     auto it = goal_status_list_.find(point_id);
     if (it != goal_status_list_.end()) {
@@ -615,7 +615,7 @@ void GoalManagerAction::checkVisitingTimeouts()
     const double QUICK_FAILURE_THRESHOLD = 5.0;  // 5秒
 
     for (auto & status_pair : goal_status_list_) {
-        uint32_t point_id = status_pair.first;
+        int32_t point_id = status_pair.first;
         auto & status = status_pair.second;
 
         // Check VISITING points for timeout
@@ -655,10 +655,10 @@ void GoalManagerAction::checkVisitingTimeouts()
 void GoalManagerAction::checkSkippedRecovery()
 {
     auto current_time = node_->now();
-    uint32_t recovered_count = 0;
+    int32_t recovered_count = 0;
 
     for (auto & status_pair : goal_status_list_) {
-        uint32_t point_id = status_pair.first;
+        int32_t point_id = status_pair.first;
         auto & status = status_pair.second;
 
         // Check SKIPPED points for recovery
@@ -699,8 +699,8 @@ void GoalManagerAction::checkAllPointsCompleted()
     }
 
     bool all_done = true;
-    uint32_t total_points = 0;
-    uint32_t skipped_count = 0;
+    int32_t total_points = 0;
+    int32_t skipped_count = 0;
 
     for (const auto & status_pair : goal_status_list_) {
         uint8_t status = status_pair.second.status;
@@ -730,7 +730,7 @@ void GoalManagerAction::checkAllPointsCompleted()
     }
 }
 
-bool GoalManagerAction::retryBlockedPoint(uint32_t point_id)
+bool GoalManagerAction::retryBlockedPoint(int32_t point_id)
 {
     auto visit_it = visit_info_map_.find(point_id);
     if (visit_it == visit_info_map_.end()) {
@@ -769,7 +769,7 @@ bool GoalManagerAction::retryBlockedPoint(uint32_t point_id)
     return false;
 }
 
-bool GoalManagerAction::isGoalReached(uint32_t point_id) const
+bool GoalManagerAction::isGoalReached(int32_t point_id) const
 {
     auto it = goal_status_list_.find(point_id);
     return (it != goal_status_list_.end() && it->second.status == DONE);
@@ -823,11 +823,11 @@ void GoalManagerAction::resetAllPoints()
                 goal_status_list_.size());
 }
 
-std::vector<uint32_t> GoalManagerAction::sortPointsByNearestNeighbor(
+std::vector<int32_t> GoalManagerAction::sortPointsByNearestNeighbor(
     const geometry_msgs::msg::PoseStamped & robot_pose)
 {
-    std::vector<uint32_t> sorted_ids;
-    std::set<uint32_t> unvisited;
+    std::vector<int32_t> sorted_ids;
+    std::set<int32_t> unvisited;
 
     // Collect all unvisited (IDLE) points
     for (const auto & status_pair : goal_status_list_) {
@@ -841,9 +841,9 @@ std::vector<uint32_t> GoalManagerAction::sortPointsByNearestNeighbor(
     // Greedy nearest neighbor algorithm
     while (!unvisited.empty()) {
         double min_dist = std::numeric_limits<double>::max();
-        uint32_t nearest_id = 0;
+        int32_t nearest_id = 0;
 
-        for (uint32_t point_id : unvisited) {
+        for (int32_t point_id : unvisited) {
             auto it = observation_points_.find(point_id);
             if (it != observation_points_.end()) {
                 double dist = euclideanDistance(current_pose, it->second);
@@ -876,7 +876,7 @@ std::vector<uint32_t> GoalManagerAction::sortPointsByNearestNeighbor(
 // Soft Lock / Hysteresis Implementation
 // ============================================================================
 
-uint32_t GoalManagerAction::findBestPointWithHysteresis(
+int32_t GoalManagerAction::findBestPointWithHysteresis(
     const geometry_msgs::msg::PoseStamped & robot_pose)
 {
     // If we have a locked goal, check if it's still valid
@@ -897,7 +897,7 @@ uint32_t GoalManagerAction::findBestPointWithHysteresis(
     // No locked goal, find best candidate with enhanced scoring
     double best_score = -1.0;
     double best_distance = std::numeric_limits<double>::max();
-    uint32_t best_id = 0;
+    int32_t best_id = 0;
 
     for (const auto & status_pair : goal_status_list_) {
         const auto & status = status_pair.second;
@@ -971,7 +971,7 @@ uint32_t GoalManagerAction::findBestPointWithHysteresis(
     return best_id;
 }
 
-bool GoalManagerAction::shouldSwitchGoal(uint32_t new_id, double new_score)
+bool GoalManagerAction::shouldSwitchGoal(int32_t new_id, double new_score)
 {
     if (locked_goal_id_ == 0) {
         return true;  // No locked goal, always switch
@@ -1004,7 +1004,7 @@ void GoalManagerAction::releaseGoalLock()
 // ============================================================================
 
 bool GoalManagerAction::checkSemanticArrival(
-    uint32_t point_id,
+    int32_t point_id,
     const geometry_msgs::msg::PoseStamped & robot_pose,
     double current_speed)
 {
@@ -1034,7 +1034,7 @@ bool GoalManagerAction::checkSemanticArrival(
     return false;
 }
 
-bool GoalManagerAction::checkStayCompletion(uint32_t point_id)
+bool GoalManagerAction::checkStayCompletion(int32_t point_id)
 {
     auto visit_it = visit_info_map_.find(point_id);
     if (visit_it == visit_info_map_.end() || !visit_it->second.arrival_detected) {
@@ -1075,7 +1075,7 @@ bool GoalManagerAction::isPointTooClose(
 // Failure Penalty Mechanism Implementation
 // ============================================================================
 
-double GoalManagerAction::getPenaltyScore(uint32_t point_id, double raw_score)
+double GoalManagerAction::getPenaltyScore(int32_t point_id, double raw_score)
 {
     auto fail_it = fail_count_map_.find(point_id);
     if (fail_it == fail_count_map_.end() || fail_it->second == 0) {
@@ -1093,14 +1093,14 @@ double GoalManagerAction::getPenaltyScore(uint32_t point_id, double raw_score)
     return penalized_score;
 }
 
-void GoalManagerAction::incrementFailCount(uint32_t point_id)
+void GoalManagerAction::incrementFailCount(int32_t point_id)
 {
     fail_count_map_[point_id]++;
     RCLCPP_DEBUG(node_->get_logger(), "Point ID %u: fail_count incremented to %d",
                 point_id, fail_count_map_[point_id]);
 }
 
-void GoalManagerAction::resetFailCount(uint32_t point_id)
+void GoalManagerAction::resetFailCount(int32_t point_id)
 {
     auto fail_it = fail_count_map_.find(point_id);
     if (fail_it != fail_count_map_.end()) {

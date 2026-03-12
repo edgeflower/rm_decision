@@ -33,10 +33,12 @@ BT::NodeStatus ConfidenceHysteresis::checkConfidenceHysteresis()
     // Get current target
     armor_interfaces::msg::Target target;
     if (!getInput<armor_interfaces::msg::Target>("target", target)) {
-        // No target data, reset to low confidence
+        // No target data, reset to low confidence but continue execution
+        // 返回 SUCCESS 让行为树继续，下游节点应该检查 hysteresis_state 来决定是否巡逻
         current_state_ = State::LOW_CONFIDENCE;
-        setOutput("hysteresis_state", std::string("LOW (NO_DATA)"));
-        return BT::NodeStatus::FAILURE;
+        setOutput("hysteresis_state", std::string("LOW")); // 使用LOW就行，下游节点根据这个状态决定是否进入巡逻模式
+        setOutput("current_confidence", 0.0);
+        return BT::NodeStatus::SUCCESS;
     }
 
     double confidence = target.confidence;

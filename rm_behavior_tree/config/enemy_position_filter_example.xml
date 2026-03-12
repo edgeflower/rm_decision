@@ -2,7 +2,7 @@
 <!--
   EnemyPositionFilter + ArmorToGoal Integration Example
 
-  This demonstrates the "Logic Relay" pattern where:
+  This demonstrates the data processing pipeline:
 
   Layer 1: EnemyPositionFilter (Data Cleaning Layer)
     - Smoothes coordinates using EMA (alpha=0.3)
@@ -10,11 +10,10 @@
     - Passes through confidence, tracking, id, etc.
     - Handles zero values by keeping last valid position
 
-  Layer 2: ArmorToGoal (Tactical Execution Layer)
+  Layer 2: ArmorToGoal (Goal Conversion Layer)
     - Receives "clean" coordinates from Filter
-    - Calculates 1.5m offset for engagement
-    - Checks confidence threshold
-    - Publishes navigation goal
+    - Converts enemy position to navigation goal
+    - No offset calculation (direct position)
 
   Data Flow:
     raw_target (vision) -> EnemyPositionFilter -> filtered_target -> ArmorToGoal -> goal_pose -> Nav2
@@ -39,135 +38,44 @@
                           history_size="5"
                           zero_threshold="0.1"/>
 
-      <!-- Step 3: Get current robot pose -->
-      <GetLocation name="GetRobotPose"
-                   topic_name="/odometry"
-                   robot_location="{robot_pose}"/>
-
-      <!-- Step 4: Tactical Execution Layer - Calculate offset goal -->
-      <ArmorToGoal name="CalculateOffsetGoal"
+      <!-- Step 3: Convert filtered target to navigation goal -->
+      <ArmorToGoal name="ConvertToGoal"
                    target_message="{filtered_target}"
-                   robot_pose="{robot_pose}"
-                   offset_distance="1.5"
-                   min_confidence="0.3"
-                   rate_limit="0.1"
                    goal_pose="{goal}"/>
 
-      <!-- Step 5: Confidence-based decision making -->
-      <Fallback name="ConfidenceCheck">
-
-        <!-- High confidence (>0.3): Navigate to enemy -->
-        <Sequence name="EngageEnemy">
-
-          <!-- Additional safety check -->
-          <CheckTargetConfidence name="VerifyConfidence"
-                                 target="{filtered_target}"
-                                 min_confidence="0.3"/>
-
-          <!-- Navigate to offset goal -->
-          <SendGoal name="NavigateToEnemy"
-                   goal_pose="{goal}"
-                   action_name="/navigate_to_pose"/>
-
-          <!-- Wait for navigation completion or target change -->
-          <ReactiveFallback name="WaitOrReposition">
-            <SuccessNode name="NavigationComplete"/>
-            <Sequence name="RepositionOnTargetChange">
-              <CheckTargetMoved name="TargetChanged"
-                              old_target="{last_goal_target}"
-                              new_target="{filtered_target}"
-                              threshold="0.5"/>
-              <AbortNavigation name="AbortNav"
-                             action_name="/navigate_to_pose"/>
-            </Sequence>
-          </ReactiveFallback>
-        </Sequence>
-
-        <!-- Low confidence (<0.3): Stop and re-acquire -->
-        <Sequence name="LowConfidenceHandler">
-          <AbortNavigation name="AbortLowConfidenceNav"
-                         action_name="/navigate_to_pose"/>
-          <StopRobot name="StopMovement"/>
-          <Wait name="WaitForBetterTracking" duration="0.5"/>
-        </Sequence>
-
-      </Fallback>
+      <!-- Step 4: Navigate to enemy -->
+      <SendGoal name="NavigateToEnemy"
+               goal_pose="{goal}"
+               action_name="/navigate_to_pose"/>
 
     </ReactiveSequence>
   </BehaviorTree>
 
-  <!-- Alternative: Simplified chain (direct connection) -->
-  <BehaviorTree ID="enemy_tracking_simple">
-    <Sequence>
+  <!-- Alternative: With confidence hysteresis -->
+  <BehaviorTree ID="enemy_tracking_with_hysteresis">
+    <ReactiveSequence>
       <SubTargetTopic topic_name="/target_tracking" target_message="{raw_target}"/>
 
       <!-- Data cleaning layer -->
       <EnemyPositionFilter enemy_position="{raw_target}"
                           filtered_position="{filtered_target}"/>
 
-      <!-- Get robot pose -->
-      <GetLocation robot_location="{robot_pose}"/>
+      <!-- Confidence hysteresis to prevent mode oscillation -->
+      <ConfidenceHysteresis target="{filtered_target}"
+                            upper_threshold="0.5"
+                            lower_threshold="0.3"
+                            grace_period="1.5"
+                            hysteresis_state="{hysteresis_state}"/>
 
-      <!-- Tactical layer -->
+      <!-- Only navigate when confidence is high -->
+      <CheckHysteresisState state="{hysteresis_state}"
+                           expected_state="HIGH"/>
+
       <ArmorToGoal target_message="{filtered_target}"
-                   robot_pose="{robot_pose}"
-                   goal_pose="{goal}"/>
-
-      <!-- Navigate -->
-      <SendGoal goal_pose="{goal}" action_name="/navigate_to_pose"/>
-    </Sequence>
-  </BehaviorTree>
-
-  <!-- Alternative: Conservative mode (smoother, higher confidence) -->
-  <BehaviorTree ID="enemy_tracking_conservative">
-    <Sequence>
-      <SubTargetTopic topic_name="/target_tracking" target_message="{raw_target}"/>
-
-      <!-- More aggressive filtering for stability -->
-      <EnemyPositionFilter enemy_position="{raw_target}"
-                          filtered_position="{filtered_target}"
-                          alpha="0.2"          <!-- Smoother, slower response -->
-                          max_distance="1.0"    <!-- Stricter outlier detection -->
-                          history_size="8"/>    <!-- Larger history window -->
-
-      <GetLocation robot_location="{robot_pose}"/>
-
-      <!-- Conservative engagement parameters -->
-      <ArmorToGoal target_message="{filtered_target}"
-                   robot_pose="{robot_pose}"
-                   offset_distance="2.0"
-                   min_confidence="0.5"
-                   rate_limit="0.2"
                    goal_pose="{goal}"/>
 
       <SendGoal goal_pose="{goal}" action_name="/navigate_to_pose"/>
-    </Sequence>
-  </BehaviorTree>
-
-  <!-- Alternative: Aggressive mode (faster response, lower confidence) -->
-  <BehaviorTree ID="enemy_tracking_aggressive">
-    <Sequence>
-      <SubTargetTopic topic_name="/target_tracking" target_message="{raw_target}"/>
-
-      <!-- Light filtering for speed -->
-      <EnemyPositionFilter enemy_position="{raw_target}"
-                          filtered_position="{filtered_target}"
-                          alpha="0.5"          <!-- Faster response -->
-                          max_distance="2.0"    <!-- More permissive -->
-                          history_size="3"/>     <!-- Shorter history -->
-
-      <GetLocation robot_location="{robot_pose}"/>
-
-      <!-- Aggressive engagement parameters -->
-      <ArmorToGoal target_message="{filtered_target}"
-                   robot_pose="{robot_pose}"
-                   offset_distance="1.0"
-                   min_confidence="0.2"
-                   rate_limit="0.05"
-                   goal_pose="{goal}"/>
-
-      <SendGoal goal_pose="{goal}" action_name="/navigate_to_pose"/>
-    </Sequence>
+    </ReactiveSequence>
   </BehaviorTree>
 
   <!-- Node Models for Groot -->
@@ -185,36 +93,22 @@
       <input_port name="history_size" default="5"/>
       <input_port name="zero_threshold" default="0.1"/>
       <description>
-        Data Cleaning Layer - Filters vision noise before ArmorToGoal.
+        Data Cleaning Layer - Filters vision noise.
 
         Only filters position.x/y, passes through all metadata:
-        - confidence (for ArmorToGoal threshold check)
+        - confidence (for ConfidenceHysteresis)
         - tracking (true/false status)
         - id (target identification)
         - armors_num, yaw, velocity, etc.
-
-        Returns SUCCESS with last valid position when input is zero/invalid.
-        This works with serial node's exponential confidence decay.
       </description>
-    </Action>
-
-    <Action ID="GetLocation">
-      <input_port name="topic_name" default="/odometry"/>
-      <output_port name="robot_location" default="{robot_pose}"/>
     </Action>
 
     <Action ID="ArmorToGoal">
       <input_port name="target_message" default="{filtered_target}"/>
-      <input_port name="robot_pose" default="{robot_pose}"/>
-      <input_port name="offset_distance" default="1.5"/>
-      <input_port name="min_confidence" default="0.3"/>
-      <input_port name="rate_limit" default="0.1"/>
       <output_port name="goal_pose" default="{goal}"/>
       <description>
-        Tactical Execution Layer - Calculates offset goal for engagement.
-
-        Assumes input coordinates are already filtered (from EnemyPositionFilter).
-        Focuses on spatial geometry and navigation control.
+        Goal Conversion Layer - Converts enemy position to navigation goal.
+        Direct use of enemy position, no offset calculation.
       </description>
     </Action>
 
@@ -223,28 +117,18 @@
       <input_port name="action_name" default="/navigate_to_pose"/>
     </Action>
 
-    <Action ID="AbortNavigation">
-      <input_port name="action_name" default="/navigate_to_pose"/>
-    </Action>
-
-    <Action ID="StopRobot">
-      <!-- Implementation depends on your robot control interface -->
-    </Action>
-
-    <Condition ID="CheckTargetConfidence">
+    <Condition ID="ConfidenceHysteresis">
       <input_port name="target" default="{filtered_target}"/>
-      <input_port name="min_confidence" default="0.3"/>
+      <input_port name="upper_threshold" default="0.5"/>
+      <input_port name="lower_threshold" default="0.3"/>
+      <input_port name="grace_period" default="1.5"/>
+      <output_port name="hysteresis_state" default="{hysteresis_state}"/>
     </Condition>
 
-    <Condition ID="CheckTargetMoved">
-      <input_port name="old_target" default="{last_goal_target}"/>
-      <input_port name="new_target" default="{filtered_target}"/>
-      <input_port name="threshold" default="0.5"/>
+    <Condition ID="CheckHysteresisState">
+      <input_port name="state" default="{hysteresis_state}"/>
+      <input_port name="expected_state" default="HIGH"/>
     </Condition>
-
-    <Action ID="Wait">
-      <input_port name="duration" default="0.5"/>
-    </Action>
   </TreeNodesModel>
 
 </root>

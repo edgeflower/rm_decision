@@ -23,7 +23,7 @@ BT::NodeStatus ShouldResetObservationCondition::onTick(
     // Update total_points if we received observation points
     if (last_msg) {
         std::lock_guard<std::mutex> lock(data_mutex_);
-        total_points_ = static_cast<uint32_t>(last_msg->points.size());
+        total_points_ = static_cast<int32_t>(last_msg->points.size());
         RCLCPP_DEBUG(node_->get_logger(), "Total observation points: %u", total_points_);
     }
 
@@ -38,16 +38,16 @@ BT::NodeStatus ShouldResetObservationCondition::onTick(
     }
 
     // Get counts from GoalManager
-    uint32_t idle_count = 0;
-    uint32_t done_count = 0;
-    uint32_t total_points_input = 0;
+    int32_t idle_count = 0;
+    int32_t done_count = 0;
+    int32_t total_points_input = 0;
 
-    getInput<uint32_t>("idle_count", idle_count);
-    getInput<uint32_t>("done_count", done_count);
-    getInput<uint32_t>("total_points", total_points_input);
+    getInput<int32_t>("idle_count", idle_count);
+    getInput<int32_t>("done_count", done_count);
+    getInput<int32_t>("total_points", total_points_input);
 
     // Use the larger of total_points_input or internally tracked total_points_
-    uint32_t effective_total = std::max(total_points_input, total_points_);
+    int32_t effective_total = std::max(total_points_input, total_points_);
 
     // Check if all points are done (no IDLE points remaining and done_count equals total)
     bool should_reset = (idle_count == 0) && (done_count > 0) &&

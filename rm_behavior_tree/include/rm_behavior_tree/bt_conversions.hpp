@@ -42,4 +42,4 @@ inline geometry_msgs::msg::PoseStamped convertFromString(const StringView key){
 
 
 }
-#endif //RM_BEHAIVOR_TREE__BT_CONVERSIONS_HPP_
+#endif // RM_BEHAVIOR_TREE__BT_CONVERSIONS_HPP_

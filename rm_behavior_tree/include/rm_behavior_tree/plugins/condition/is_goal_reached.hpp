@@ -21,7 +21,7 @@ enum GoalStatusEnum : uint8_t {
 
 // Goal status structure for Blackboard sharing
 struct GoalStatusEntry {
-    uint32_t point_id;
+    int32_t point_id;
     uint8_t status;
 
     GoalStatusEntry() : point_id(0), status(IDLE) {}
@@ -35,9 +35,9 @@ public:
     static BT::PortsList providedPorts()
     {
         return {
-            BT::InputPort<uint32_t>("goal_id", "ID of the goal to check"),
+            BT::InputPort<int32_t>("goal_id", "ID of the goal to check"),
             BT::InputPort<bool>("check_current", false, "Check if currently selected goal is reached"),
-            BT::InputPort<uint32_t>("current_goal_id", 0, "Current goal ID from GoalManager"),
+            BT::InputPort<int32_t>("current_goal_id", 0, "Current goal ID from GoalManager"),
             BT::InputPort<std::vector<GoalStatusEntry>>("goal_statuses", "Goal statuses from GoalManager"),
             BT::InputPort<geometry_msgs::msg::PoseStamped>("robot_pose", "Current robot pose for approximate check"),
             BT::InputPort<geometry_msgs::msg::PoseStamped>("current_goal", "Current goal pose for approximate check"),
@@ -49,7 +49,7 @@ public:
     BT::NodeStatus checkGoalReached();
 
     // Helper to check if goal is reached (DONE status)
-    bool isGoalReached(uint32_t goal_id, const std::vector<GoalStatusEntry>& statuses) const;
+    bool isGoalReached(int32_t goal_id, const std::vector<GoalStatusEntry>& statuses) const;
 
     // Helper to check approximate arrival
     bool isApproximatelyReached(const geometry_msgs::msg::PoseStamped& robot_pose,

@@ -20,8 +20,8 @@ IsGoalReachedCondition::IsGoalReachedCondition(
 BT::NodeStatus IsGoalReachedCondition::checkGoalReached()
 {
     // Get goal_id from input port
-    uint32_t goal_id = 0;
-    if (!getInput<uint32_t>("goal_id", goal_id)) {
+    int32_t goal_id = 0;
+    if (!getInput<int32_t>("goal_id", goal_id)) {
         RCLCPP_ERROR(rclcpp::get_logger("IsGoalReached"), "Failed to get goal_id from input port");
         return BT::NodeStatus::FAILURE;
     }
@@ -38,8 +38,8 @@ BT::NodeStatus IsGoalReachedCondition::checkGoalReached()
     getInput<bool>("check_current", check_current);
 
     if (check_current) {
-        uint32_t current_goal_id = 0;
-        if (getInput<uint32_t>("current_goal_id", current_goal_id)) {
+        int32_t current_goal_id = 0;
+        if (getInput<int32_t>("current_goal_id", current_goal_id)) {
             if (current_goal_id != goal_id) {
                 // Not the current goal, return FAILURE
                 RCLCPP_DEBUG(rclcpp::get_logger("IsGoalReached"), "Goal ID %u is not the current goal (%u)",
@@ -77,7 +77,7 @@ BT::NodeStatus IsGoalReachedCondition::checkGoalReached()
     return BT::NodeStatus::FAILURE;
 }
 
-bool IsGoalReachedCondition::isGoalReached(uint32_t goal_id, const std::vector<GoalStatusEntry>& statuses) const
+bool IsGoalReachedCondition::isGoalReached(int32_t goal_id, const std::vector<GoalStatusEntry>& statuses) const
 {
     for (const auto& entry : statuses) {
         if (entry.point_id == goal_id) {

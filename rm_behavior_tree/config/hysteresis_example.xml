@@ -67,10 +67,6 @@
         <!-- 计算偏移目标 -->
         <ArmorToGoal name="CalculateOffsetGoal"
                      target_message="{filtered_target}"
-                     robot_pose="{robot_pose}"
-                     offset_distance="1.5"
-                     min_confidence="0.2"
-                     rate_limit="0.1"
                      goal_pose="{goal}"/>
 
         <!-- 导航到敌人 -->
@@ -135,7 +131,6 @@
                      held_goal="{goal}"/>
         <!-- 正常模式：计算偏移目标 -->
         <ArmorToGoal target_message="{filtered_target}"
-                     robot_pose="{robot_pose}"
                      goal_pose="{goal}"/>
       </Fallback>
 
@@ -174,7 +169,6 @@
                                  state="{hysteresis_state}"
                                  expected_state="HIGH"/>
             <ArmorToGoal target_message="{filtered_target}"
-                         robot_pose="{robot_pose}"
                          goal_pose="{goal}"/>
           </ReactiveSequence>
 
@@ -243,10 +237,6 @@
 
       <!-- 激进偏移 -->
       <ArmorToGoal target_message="{filtered_target}"
-                   robot_pose="{robot_pose}"
-                   offset_distance="1.0"
-                   min_confidence="0.2"
-                   rate_limit="0.05"
                    goal_pose="{goal}"/>
 
       <SendGoal goal_pose="{goal}" action_name="/navigate_to_pose"/>
@@ -273,10 +263,6 @@
 
       <!-- 保守偏移 -->
       <ArmorToGoal target_message="{filtered_target}"
-                   robot_pose="{robot_pose}"
-                   offset_distance="2.0"
-                   min_confidence="0.4"
-                   rate_limit="0.2"
                    goal_pose="{goal}"/>
 
       <SendGoal goal_pose="{goal}" action_name="/navigate_to_pose"/>
@@ -333,10 +319,6 @@
 
     <Action ID="ArmorToGoal">
       <input_port name="target_message" default="{filtered_target}"/>
-      <input_port name="robot_pose" default="{robot_pose}"/>
-      <input_port name="offset_distance" default="1.5"/>
-      <input_port name="min_confidence" default="0.3"/>
-      <input_port name="rate_limit" default="0.1"/>
       <output_port name="goal_pose" default="{goal}"/>
     </Action>
 

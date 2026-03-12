@@ -16,7 +16,7 @@
                      arrival_distance="0.5"
                      arrival_speed="0.2"
                      stay_duration="1.0"
-                     min_exclusion_radius="0.1"
+                     min_exclusion_radius="1.0"
                      robot_speed="{robot_speed}"
                      auto_reset_cooldown="5.0"
                      completed_point_cooldown="10.0"
@@ -32,6 +32,7 @@
           <SendGoal name="NavigateToObservation"
                     goal_pose="{best_goal}"
                     action_name="/navigate_to_pose"
+                    min_goal_distance="0.5"
                     current_goal_id="{goal_id}"
                     reached_goal_id="{reached_goal_id}"/>
           <RetryUntilSuccessful num_attempts="3">
@@ -46,6 +47,7 @@
                            approximate_distance="0.5"/>
           </RetryUntilSuccessful>
         </Sequence>
+        <Wait duration="3.0"/>
       </Sequence>
     </Sequence>
   </BehaviorTree>
@@ -127,10 +129,16 @@
                   default="{best_goal}"/>
       <input_port name="action_name"
                   default="/navigate_to_pose"/>
+      <input_port name="min_goal_distance"
+                  default="0.5"/>
       <input_port name="current_goal_id"
                   default="{goal_id}"/>
       <output_port name="reached_goal_id"
                    default="{reached_goal_id}"/>
+    </Action>
+    <Action ID="Wait">
+      <input_port name="duration"
+                  default="1.0"/>
     </Action>
   </TreeNodesModel>
 

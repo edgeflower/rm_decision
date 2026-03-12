@@ -14,6 +14,7 @@
 #include <vector>
 #include "behaviortree_cpp/bt_factory.h"           // 行为树工厂，用于创建和管理行为树
 #include "behaviortree_cpp/loggers/groot2_publisher.h" // Groot2调试发布器
+#include "rm_behavior_tree/bt_conversions.hpp"     // 行为树类型转换（PoseStamped 等）
 #include "behaviortree_cpp/utils/shared_library.h" // 共享库操作接口
 #include "behaviortree_ros2/plugins.hpp"           // ROS2插件注册接口
 
@@ -83,6 +84,10 @@ private:
         BT::RosNodeParams params_send_goal;
         params_send_goal.nh = std::make_shared<rclcpp::Node>("send_goal");
         params_send_goal.default_port_value = "goal_pose";
+
+        BT::RosNodeParams params_send_my_goal;
+        params_send_my_goal.nh = std::make_shared<rclcpp::Node>("send_my_goal");
+        params_send_my_goal.default_port_value = "my_goal_pose";
 
         BT::RosNodeParams params_set_posture;
         params_set_posture.nh = std::make_shared<rclcpp::Node>("set_posture");
@@ -154,6 +159,7 @@ private:
 
         // 注册目标发送和机器人控制插件
         RegisterRosNode(*factory, BT::SharedLibrary::getOSName("send_goal"), params_send_goal);
+        RegisterRosNode(*factory, BT::SharedLibrary::getOSName("send_my_goal"), params_send_my_goal);
         RegisterRosNode(*factory, BT::SharedLibrary::getOSName("robot_control"), params_robot_control);
         RegisterRosNode(*factory, BT::SharedLibrary::getOSName("set_posture"), params_set_posture);
 

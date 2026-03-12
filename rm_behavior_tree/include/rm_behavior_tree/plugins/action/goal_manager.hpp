@@ -39,16 +39,16 @@ enum SystemGoalID : int32_t {
 
 // Goal status structure for Blackboard sharing (must match IsGoalReachedCondition)
 struct GoalStatusEntry {
-    uint32_t point_id;
+    int32_t point_id;
     uint8_t status;
 
     GoalStatusEntry() : point_id(0), status(IDLE) {}
-    GoalStatusEntry(uint32_t id, uint8_t s) : point_id(id), status(s) {}
+    GoalStatusEntry(int32_t id, uint8_t s) : point_id(id), status(s) {}
 };
 
 // Point visit tracking
 struct PointVisitInfo {
-    uint32_t point_id;
+    int32_t point_id;
     rclcpp::Time visit_start_time;
     rclcpp::Time arrival_time;      // Time when semantic arrival was detected
     double max_duration_seconds;
@@ -97,10 +97,10 @@ public:
             BT::InputPort<double>("skipped_recovery_time", 30.0, "Time before SKIPPED points automatically recover to IDLE (seconds)"),
             BT::InputPort<int32_t>("reached_goal_id", SystemGoalID::SIGNAL_IDLE, "Handshake ID from SendGoal: patrol (>0) or system task (<0)"),
             BT::OutputPort<geometry_msgs::msg::PoseStamped>("best_goal"),
-            BT::OutputPort<uint32_t>("selected_id"),
+            BT::OutputPort<int32_t>("selected_id"),
             BT::OutputPort<bool>("should_reset", "True if all points completed"),
-            BT::OutputPort<uint32_t>("idle_count", "Number of IDLE points remaining"),
-            BT::OutputPort<uint32_t>("done_count", "Number of DONE points"),
+            BT::OutputPort<int32_t>("idle_count", "Number of IDLE points remaining"),
+            BT::OutputPort<int32_t>("done_count", "Number of DONE points"),
             BT::OutputPort<std::vector<GoalStatusEntry>>("goal_statuses", "All goal statuses for sharing with BT")
         };
         return BT::RosTopicSubNode<rm_decision_interfaces::msg::ObservationPoints>::providedBasicPorts(custom_ports);
@@ -111,7 +111,7 @@ public:
     BT::NodeStatus onTick(const std::shared_ptr<rm_decision_interfaces::msg::ObservationPoints>& last_msg) override;
 
     // Public methods for BT condition nodes
-    bool isGoalReached(uint32_t point_id) const;
+    bool isGoalReached(int32_t point_id) const;
     bool shouldResetAll() const;
     void resetAllPoints();
 
@@ -120,10 +120,10 @@ private:
     rclcpp::Client<nav2_msgs::srv::GetCostmap>::SharedPtr costmap_client_;
 
     // Data storage
-    std::map<uint32_t, rm_decision_interfaces::msg::ObservationPoint> observation_points_;
-    std::map<uint32_t, rm_decision_interfaces::msg::GoalStatus> goal_status_list_;
-    std::map<uint32_t, PointVisitInfo> visit_info_map_;
-    std::map<uint32_t, int> fail_count_map_;  // Failure penalty tracking
+    std::map<int32_t, rm_decision_interfaces::msg::ObservationPoint> observation_points_;
+    std::map<int32_t, rm_decision_interfaces::msg::GoalStatus> goal_status_list_;
+    std::map<int32_t, PointVisitInfo> visit_info_map_;
+    std::map<int32_t, int> fail_count_map_;  // Failure penalty tracking
     mutable std::mutex data_mutex_;
 
     // Parameters
@@ -135,7 +135,7 @@ private:
 
     // Soft lock / Hysteresis parameters
     double hysteresis_threshold_;
-    uint32_t locked_goal_id_;          // Currently locked goal (0 = no lock)
+    int32_t locked_goal_id_;          // Currently locked goal (0 = no lock)
     double locked_goal_score_;         // Score of locked goal for comparison
 
     // Semantic arrival parameters
@@ -151,7 +151,7 @@ private:
     rclcpp::Time last_auto_reset_time_; // Last time auto-reset was triggered
 
     // Completed point cooldown mechanism (prevent immediate return)
-    uint32_t last_completed_point_id_;  // Last point that was completed
+    int32_t last_completed_point_id_;  // Last point that was completed
     rclcpp::Time last_complete_time_;     // Time when last point was completed
     double completed_point_cooldown_;     // Cooldown time for last completed point (seconds)
 
@@ -159,44 +159,44 @@ private:
     double skipped_recovery_time_;        // Time before SKIPPED points auto-recover to IDLE
 
     // Helper functions
-    uint32_t findNearestIdlePoint(const geometry_msgs::msg::PoseStamped & robot_pose);
-    uint32_t findNearestPointConsideringRetry(const geometry_msgs::msg::PoseStamped & robot_pose);
+    int32_t findNearestIdlePoint(const geometry_msgs::msg::PoseStamped & robot_pose);
+    int32_t findNearestPointConsideringRetry(const geometry_msgs::msg::PoseStamped & robot_pose);
     double euclideanDistance(const geometry_msgs::msg::PoseStamped & pose1,
                               const rm_decision_interfaces::msg::ObservationPoint & point2);
 
     // Soft lock / Hysteresis functions
-    uint32_t findBestPointWithHysteresis(const geometry_msgs::msg::PoseStamped & robot_pose);
-    bool shouldSwitchGoal(uint32_t new_id, double new_score);
+    int32_t findBestPointWithHysteresis(const geometry_msgs::msg::PoseStamped & robot_pose);
+    bool shouldSwitchGoal(int32_t new_id, double new_score);
     void releaseGoalLock();
 
     // Semantic arrival functions
-    bool checkSemanticArrival(uint32_t point_id,
+    bool checkSemanticArrival(int32_t point_id,
                               const geometry_msgs::msg::PoseStamped & robot_pose,
                               double current_speed);
-    bool checkStayCompletion(uint32_t point_id);
+    bool checkStayCompletion(int32_t point_id);
 
     // Dynamic proximity exclusion
     bool isPointTooClose(const geometry_msgs::msg::PoseStamped & robot_pose,
                          const rm_decision_interfaces::msg::ObservationPoint & point);
 
     // Failure penalty
-    double getPenaltyScore(uint32_t point_id, double raw_score);
-    void incrementFailCount(uint32_t point_id);
-    void resetFailCount(uint32_t point_id);
+    double getPenaltyScore(int32_t point_id, double raw_score);
+    void incrementFailCount(int32_t point_id);
+    void resetFailCount(int32_t point_id);
 
     // Enhanced costmap checking with delay logic
     enum CostmapStatus { REACHABLE, HIGH_COST, LETHAL, OUT_OF_BOUNDS };
     CostmapStatus checkCostmapStatus(const geometry_msgs::msg::PoseStamped & goal, double & cost_value);
 
     // Status management
-    void updateGoalStatus(uint32_t point_id, GoalStatusEnum status);
+    void updateGoalStatus(int32_t point_id, GoalStatusEnum status);
     void checkVisitingTimeouts();
     void checkSkippedRecovery();
     void checkAllPointsCompleted();
-    bool retryBlockedPoint(uint32_t point_id);
+    bool retryBlockedPoint(int32_t point_id);
 
     // TSP nearest neighbor algorithm
-    std::vector<uint32_t> sortPointsByNearestNeighbor(const geometry_msgs::msg::PoseStamped & robot_pose);
+    std::vector<int32_t> sortPointsByNearestNeighbor(const geometry_msgs::msg::PoseStamped & robot_pose);
 };
 
 } // namespace rm_behavior_tree

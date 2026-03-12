@@ -19,18 +19,35 @@ BT::NodeStatus EnemyPositionFilter::tick()
     double max_distance = 1.5;  // CHANGED: Default from 10.0 to 1.5 for RoboMaster 3v3
     int history_size = 5;
     double zero_threshold = 0.1;
+    double min_output_interval = 0.1;  // 默认100ms (10Hz)
 
     getInput("alpha", alpha);
     getInput("max_distance", max_distance);
     getInput("history_size", history_size);
     getInput("zero_threshold", zero_threshold);
+    getInput("min_output_interval", min_output_interval);
 
     alpha_ = std::clamp(alpha, 0.01, 1.0);
     max_history_size_ = std::max(2, history_size);
+    min_output_interval_ = min_output_interval;
 
     RCLCPP_DEBUG(rclcpp::get_logger("EnemyPositionFilter"),
-        "Params: alpha=%.2f, max_distance=%.2fm, history_size=%zu",
-        alpha_, max_distance, max_history_size_);
+        "Params: alpha=%.2f, max_distance=%.2fm, history_size=%zu, min_interval=%.2fs",
+        alpha_, max_distance, max_history_size_, min_output_interval_);
+
+    // 方案1: 检查输出时间间隔，防止频繁输出导致导航抖动
+    rclcpp::Time current_time = rclcpp::Clock().now();
+    if (initialized_ && last_output_time_.nanoseconds() > 0) {
+        double elapsed = (current_time - last_output_time_).seconds();
+        if (elapsed < min_output_interval_) {
+            // 未达到最小输出间隔，直接返回上次值，不重新计算
+            RCLCPP_DEBUG(rclcpp::get_logger("EnemyPositionFilter"),
+                "Output throttled: %.3fs < %.3fs, using last value",
+                elapsed, min_output_interval_);
+            setOutput("filtered_position", filtered_target_);
+            return BT::NodeStatus::SUCCESS;
+        }
+    }
 
     // 获取输入的敌人位置 (完整 Target 消息)
     armor_interfaces::msg::Target enemy_position;
@@ -77,8 +94,10 @@ BT::NodeStatus EnemyPositionFilter::tick()
             setOutput("filtered_position", filtered_target_);
             return BT::NodeStatus::SUCCESS;
         }
+        /*
         RCLCPP_WARN(rclcpp::get_logger("EnemyPositionFilter"),
             "Zero value on first input, cannot initialize");
+            */
         return BT::NodeStatus::FAILURE;
     }
 
@@ -131,6 +150,9 @@ BT::NodeStatus EnemyPositionFilter::tick()
 
     setOutput("filtered_position", filtered_target_);
 
+    // 更新最后输出时间
+    last_output_time_ = rclcpp::Clock().now();
+
     RCLCPP_DEBUG(rclcpp::get_logger("EnemyPositionFilter"),
         "Filtered: raw[%.2f, %.2f] -> filtered[%.2f, %.2f], id=%s, conf=%.2f, tracking=%d",
         enemy_position.position.x, enemy_position.position.y,
@@ -145,6 +167,7 @@ void EnemyPositionFilter::reset()
 {
     initialized_ = false;
     history_.clear();
+    last_output_time_ = rclcpp::Time(0, 0, RCL_ROS_TIME);
     RCLCPP_INFO(rclcpp::get_logger("EnemyPositionFilter"),
         "Filter reset - will require fresh input");
 }

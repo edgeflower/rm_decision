@@ -50,6 +50,11 @@ target_link_libraries(rm_behavior_tree_me
   fmt::fmt  # <--- 重点是添加这一行
 )
 # action
+
+ament_auto_add_library(send_my_goal SHARED
+  plugins/action/send_my_goal.cpp)
+add_target_dependencies(send_my_goal)
+
 ament_auto_add_library(sub_all_robot_location SHARED
   plugins/action/sub_all_robot_location.cpp)
 add_target_dependencies(sub_all_robot_location)
