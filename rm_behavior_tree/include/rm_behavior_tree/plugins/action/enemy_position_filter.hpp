@@ -90,6 +90,10 @@ class EnemyPositionFilter : public BT::SyncActionNode
         armor_interfaces::msg::Target createFilteredTarget(
             double x, double y,
             const armor_interfaces::msg::Target& original);
+
+        // Helper: Create default target when no valid data available
+        // Sets confidence=0.0 to signal no enemy detected to downstream nodes
+        armor_interfaces::msg::Target createDefaultTarget();
     };
 
 } // namespace rm_behavior_tree

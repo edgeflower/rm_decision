@@ -47,7 +47,7 @@ BT::NodeStatus ArmorToGoalAction::tick()
 
     // 3. 设置输出端口
     setOutput("goal_pose", goal);
-
+    
     RCLCPP_INFO(this->get_logger(), "Goal set to enemy position:");
     RCLCPP_INFO(this->get_logger(), "  Enemy: (%.2f, %.2f)", target.position.x, target.position.y);
     RCLCPP_INFO(this->get_logger(), "  Goal: (%.2f, %.2f)", goal.pose.position.x, goal.pose.position.y);

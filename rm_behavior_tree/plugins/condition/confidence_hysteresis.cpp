@@ -91,7 +91,7 @@ BT::NodeStatus ConfidenceHysteresis::checkConfidenceHysteresis()
                             elapsed, confidence);
 
                 setOutput("hysteresis_state", stateToString(current_state_));
-                return BT::NodeStatus::FAILURE;
+                return BT::NodeStatus::SUCCESS;  // 状态计算器始终返回SUCCESS，由CheckHysteresisState判断
             }
 
             // 仍在观察期
@@ -122,10 +122,10 @@ BT::NodeStatus ConfidenceHysteresis::checkConfidenceHysteresis()
                         "State: LOW (confidence: %.2f)", confidence);
 
             setOutput("hysteresis_state", stateToString(current_state_));
-            return BT::NodeStatus::FAILURE;
+            return BT::NodeStatus::SUCCESS;  // 状态计算器始终返回SUCCESS，由CheckHysteresisState判断
     }
 
-    return BT::NodeStatus::FAILURE;  // Should not reach here
+    return BT::NodeStatus::SUCCESS;  // Should not reach here, but default to SUCCESS
 }
 
 void ConfidenceHysteresis::reset()

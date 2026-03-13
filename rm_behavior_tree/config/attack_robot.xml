@@ -83,7 +83,8 @@
                                 expected_state="LOW"/>
           <AbortNavigation action_name="/navigate_to_pose"/>
           <SubTree ID="PatrolObservationPoints"
-                   goal_pose=""/>
+                   goal_pose=""
+                   _autoremap="false"/>
         </ReactiveSequence>
       </ReactiveFallback>
     </Sequence>

@@ -60,9 +60,11 @@ BT::NodeStatus EnemyPositionFilter::tick()
                 "No input, using last valid target");
             return BT::NodeStatus::SUCCESS;
         }
-        RCLCPP_WARN(rclcpp::get_logger("EnemyPositionFilter"),
-            "No input and no history available");
-        return BT::NodeStatus::FAILURE;
+        // 数据清洗节点：始终返回SUCCESS，输出confidence=0.0让confidence_hysteresis判断
+        setOutput("filtered_position", createDefaultTarget());
+        RCLCPP_DEBUG(rclcpp::get_logger("EnemyPositionFilter"),
+            "No input, outputting default target with confidence=0.0");
+        return BT::NodeStatus::SUCCESS;
     }
 
     // 检查位置是否有效（不是NaN或无穷大）
@@ -75,9 +77,11 @@ BT::NodeStatus EnemyPositionFilter::tick()
                 "Invalid position (NaN/Inf), using last valid target");
             return BT::NodeStatus::SUCCESS;
         }
-        RCLCPP_ERROR(rclcpp::get_logger("EnemyPositionFilter"),
-            "Invalid position and no history");
-        return BT::NodeStatus::FAILURE;
+        // 数据清洗节点：始终返回SUCCESS，输出confidence=0.0让confidence_hysteresis判断
+        setOutput("filtered_position", createDefaultTarget());
+        RCLCPP_DEBUG(rclcpp::get_logger("EnemyPositionFilter"),
+            "Invalid position, outputting default target with confidence=0.0");
+        return BT::NodeStatus::SUCCESS;
     }
 
     // 检查是否为0值（视觉未检测到目标或预测丢失时）
@@ -94,11 +98,11 @@ BT::NodeStatus EnemyPositionFilter::tick()
             setOutput("filtered_position", filtered_target_);
             return BT::NodeStatus::SUCCESS;
         }
-        /*
-        RCLCPP_WARN(rclcpp::get_logger("EnemyPositionFilter"),
-            "Zero value on first input, cannot initialize");
-            */
-        return BT::NodeStatus::FAILURE;
+        // 首次收到零值：数据清洗节点输出confidence=0.0让confidence_hysteresis判断
+        RCLCPP_DEBUG(rclcpp::get_logger("EnemyPositionFilter"),
+            "Zero value on first input, outputting default target with confidence=0.0");
+        setOutput("filtered_position", createDefaultTarget());
+        return BT::NodeStatus::SUCCESS;
     }
 
     // 检查是否为异常值（仅在历史数据充足时启用）
@@ -269,6 +273,40 @@ armor_interfaces::msg::Target EnemyPositionFilter::createFilteredTarget(
     filtered.velocity = original.velocity;
 
     return filtered;
+}
+
+armor_interfaces::msg::Target EnemyPositionFilter::createDefaultTarget()
+{
+    armor_interfaces::msg::Target default_target;
+
+    // 设置为当前位置（地图原点）
+    default_target.header.stamp = rclcpp::Clock().now();
+    default_target.header.frame_id = "map";
+
+    default_target.position.x = 0.0;
+    default_target.position.y = 0.0;
+    default_target.position.z = 0.0;
+
+    // 关键：设置confidence=0.0，让confidence_hysteresis判断没有检测到敌人
+    default_target.confidence = 0.0;
+
+    // 其他元数据设置为默认值
+    default_target.tracking = false;
+    default_target.tracking_status = 0;
+    default_target.id = "";
+    default_target.armors_num = 0;
+
+    default_target.yaw = 0.0;
+    default_target.v_yaw = 0.0;
+    default_target.radius_1 = 0.0;
+    default_target.radius_2 = 0.0;
+    default_target.dz = 0.0;
+
+    default_target.velocity.x = 0.0;
+    default_target.velocity.y = 0.0;
+    default_target.velocity.z = 0.0;
+
+    return default_target;
 }
 
 } // namespace rm_behavior_tree
