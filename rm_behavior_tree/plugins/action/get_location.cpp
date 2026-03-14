@@ -43,13 +43,14 @@ BT::NodeStatus GetLocationAction::onTick(
     if (last_msg) {
         robot_location.pose.position.x = last_msg->pose.pose.position.x;
         robot_location.pose.position.y = last_msg->pose.pose.position.y;
-        robot_location.pose.position.z = 0.0;
+        //robot_location.pose.position.z = last_msg->twist.twist.linear.z; // 方案3: 用 linear.z 存储高度（如果需要的话）
 
 
         setOutput("robot_location", robot_location);
 
         RCLCPP_DEBUG(logger(), "[GetLocation] pose.position.x: %f", robot_location.pose.position.x);
         RCLCPP_DEBUG(logger(), "[GetLocation] pose.position.y: %f", robot_location.pose.position.y);
+        
 
         return BT::NodeStatus::SUCCESS;
     } else {

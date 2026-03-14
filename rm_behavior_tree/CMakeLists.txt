@@ -148,6 +148,21 @@ ament_auto_add_library(goal_manager SHARED
   plugins/action/goal_manager.cpp)
 add_target_dependencies(goal_manager)
 
+# Set Goal Action Node
+ament_auto_add_library(set_goal SHARED
+  plugins/action/set_goal.cpp)
+add_target_dependencies(set_goal)
+
+# Calculate Angle Action Node
+ament_auto_add_library(calculate_angle SHARED
+  plugins/action/calculate_angle.cpp)
+add_target_dependencies(calculate_angle)
+
+# Cancel Navigation Action Node
+ament_auto_add_library(cancel_navigation SHARED
+  plugins/action/cancel_navigation.cpp)
+add_target_dependencies(cancel_navigation)
+
 # Map Processor Node (independent ROS2 node)
 ament_auto_add_executable(map_processor_node
   src/map_processor_node.cpp)

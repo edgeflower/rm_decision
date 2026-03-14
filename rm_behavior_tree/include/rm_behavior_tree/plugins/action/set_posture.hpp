@@ -10,16 +10,16 @@ namespace rm_behavior_tree
 class SetPosture : public BT::RosServiceNode<rm_decision_interfaces::srv::SetSentryPosture>
 {
 public:
-    SetPosture(const std::string & name, 
-               const BT::NodeConfig & conf, 
+    SetPosture(const std::string & name,
+               const BT::NodeConfig & conf,
                const BT::RosNodeParams & params);
 
     static BT::PortsList providedPorts()
     {
         return {
             BT::InputPort<int>("posture", "要切换的机器人姿态"),
-            BT::InputPort<bool>("override", false, "是否强制覆盖当前状态")
-            //BT::InputPort<std::string>("service_name", "/set_posture", "服务名称")
+            BT::InputPort<bool>("override", false, "是否强制覆盖当前状态"),
+            BT::InputPort<int>("current_posture", 0, "当前实际姿态（从SubRobotPosture获取）")
         };
     }
 
@@ -39,13 +39,16 @@ private:
         POSTURE_DEFENSE = 2,  // 防御姿态
         POSTURE_MOVE = 3,     // 移动姿态
     };
-    // 如果需要 15 秒保持逻辑，可以记录时间
+
+    // 目标姿态
+    int target_posture_ {0};
+    // 请求发送时间
     rclcpp::Time start_time_;
-    bool is_executing_timer_ = false;
-    // 从端口读取数据
-    int posture;
-    bool override_mode;
-    
+    // 是否已记录开始时间
+    bool is_executing_timer_ {false};
+    // 超时时间（秒）
+    const double POSTURE_TIMEOUT_SECONDS_ = 15.0;
+
 };
 
 } // namespace rm_behavior_tree

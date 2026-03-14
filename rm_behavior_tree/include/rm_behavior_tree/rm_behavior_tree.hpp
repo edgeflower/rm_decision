@@ -113,6 +113,17 @@ private:
         params_get_location.nh = getSharedPtr();
         params_get_location.default_port_value = "/odometry";
 
+        // Parameters for cancel_navigation (uses shared node, subscribes to /action_name)
+        BT::RosNodeParams params_cancel_navigation;
+        params_cancel_navigation.nh = getSharedPtr();
+        params_cancel_navigation.default_port_value = "/action_name";
+
+        // Parameters for is_goal_reached (subscribes to /goal_pose and /robot_location)
+        BT::RosNodeParams params_calulate_angle;
+        params_calulate_angle.nh = getSharedPtr();
+        params_calulate_angle.default_port_value = "/goal_pose"; // 主要输入，另外还会订阅 /robot_location
+
+
         const std::vector<std::string> msg_update_plugins_libs = {
             "sub_all_robot_hp",
             "sub_robot_status",
@@ -170,6 +181,8 @@ private:
         // is_goal_reached: moved to bt_plugins_libs (uses Blackboard, not RosNodeParams)
         RegisterRosNode(*factory, BT::SharedLibrary::getOSName("get_robot_location"), params_get_robot_location);
         RegisterRosNode(*factory, BT::SharedLibrary::getOSName("get_location"), params_get_location);
+        RegisterRosNode(*factory, BT::SharedLibrary::getOSName("cancel_navigation"), params_cancel_navigation);
+        RegisterRosNode(*factory, BT::SharedLibrary::getOSName("calculate_angle"), params_calulate_angle);
     }
 
     // 成员变量

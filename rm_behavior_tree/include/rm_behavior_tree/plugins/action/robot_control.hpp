@@ -16,9 +16,10 @@ public:
 
   static BT::PortsList providedPorts()
     {
-        return{BT::InputPort<bool>("stop_gimbal_scan"), 
+        return{BT::InputPort<bool>("stop_gimbal_scan"),
                BT::InputPort<float>("chassis_spin_vel"),
-               BT::InputPort<float>("gimbal_big_yaw_vel")};
+               BT::InputPort<float>("gimbal_big_yaw_vel"),
+               BT::InputPort<float>("gimbal_big_yaw_angle")};
      }
 };
 } // namespace rm_behavior_tree
