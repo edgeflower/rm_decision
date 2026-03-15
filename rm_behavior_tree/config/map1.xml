@@ -27,12 +27,14 @@
             <CheckHysteresisState state="{hysteresis_state}"
                                   expected_state="GRACE_PERIOD"/>
           </Fallback>
-          <RobotControl stop_gimbal_scan="True"
-                        chassis_spin_vel="0.0"
-                        gimbal_big_yaw_vel="0.0"
-                        gimbal_big_yaw_angle="π/4"/>
+          <Sequence>
+            <CancelNavigation action_name="/navigate_to_pose"/>
+            <RobotControl stop_gimbal_scan="True"
+                          chassis_spin_vel="0.0"
+                          gimbal_big_yaw_vel="0.0"/>
+          </Sequence>
           <SendMyGoal name="NavigateToObservation"
-                      my_goal_pose="7.55348;6.31452;0;0;0;-0.52001;0.85416"
+                      my_goal_pose="5.92473;2.05222;0;0;0;0.105351;0.994435"
                       action_name="/navigate_to_pose"/>
         </WhileDoElse>
         <WhileDoElse>
@@ -42,10 +44,29 @@
             <CheckHysteresisState state="{hysteresis_state}"
                                   expected_state="GRACE_PERIOD"/>
           </Fallback>
-          <RobotControl stop_gimbal_scan="True"
-                        chassis_spin_vel="0.0"
-                        gimbal_big_yaw_vel="0.0"
-                        gimbal_big_yaw_angle="π/4"/>
+          <Sequence>
+            <CancelNavigation action_name="/navigate_to_pose"/>
+            <RobotControl stop_gimbal_scan="True"
+                          chassis_spin_vel="0.0"
+                          gimbal_big_yaw_vel="0.0"/>
+          </Sequence>
+          <SendMyGoal name="NavigateToObservation"
+                      my_goal_pose="7.55348;6.31452;0;0;0;-0.5200;0.85416"
+                      action_name="/navigate_to_pose"/>
+        </WhileDoElse>
+        <WhileDoElse>
+          <Fallback>
+            <CheckHysteresisState state="{hysteresis_state}"
+                                  expected_state="HIGH"/>
+            <CheckHysteresisState state="{hysteresis_state}"
+                                  expected_state="GRACE_PERIOD"/>
+          </Fallback>
+          <Sequence>
+            <RobotControl stop_gimbal_scan="True"
+                          chassis_spin_vel="0.0"
+                          gimbal_big_yaw_vel="0.0"/>
+            <CancelNavigation action_name="/navigate_to_pose"/>
+          </Sequence>
           <SendMyGoal name="NavigateToObservation"
                       my_goal_pose="1.77281;6.15745;0;0;0;-0.507379;0.861723"
                       action_name="/navigate_to_pose"/>
@@ -57,27 +78,14 @@
             <CheckHysteresisState state="{hysteresis_state}"
                                   expected_state="GRACE_PERIOD"/>
           </Fallback>
-          <RobotControl stop_gimbal_scan="True"
-                        chassis_spin_vel="0.0"
-                        gimbal_big_yaw_vel="0.0"
-                        gimbal_big_yaw_angle="π/4"/>
+          <Sequence>
+            <CancelNavigation action_name="/navigate_to_pose"/>
+            <RobotControl stop_gimbal_scan="True"
+                          chassis_spin_vel="0.0"
+                          gimbal_big_yaw_vel="0.0"/>
+          </Sequence>
           <SendMyGoal name="NavigateToObservation"
                       my_goal_pose="0.0186658;0.893684;0;0;0;-0.271322;0.962489"
-                      action_name="/navigate_to_pose"/>
-        </WhileDoElse>
-        <WhileDoElse>
-          <Fallback>
-            <CheckHysteresisState state="{hysteresis_state}"
-                                  expected_state="HIGH"/>
-            <CheckHysteresisState state="{hysteresis_state}"
-                                  expected_state="GRACE_PERIOD"/>
-          </Fallback>
-          <RobotControl stop_gimbal_scan="True"
-                        chassis_spin_vel="0.0"
-                        gimbal_big_yaw_vel="0.0"
-                        gimbal_big_yaw_angle="π/4"/>
-          <SendMyGoal name="NavigateToObservation"
-                      my_goal_pose="5.92473;2.05222;0;0;0;0.105351;0.994435"
                       action_name="/navigate_to_pose"/>
         </WhileDoElse>
       </Sequence>
@@ -86,6 +94,10 @@
 
   <!-- Description of Node Models (used by Groot) -->
   <TreeNodesModel>
+    <Action ID="CancelNavigation">
+      <input_port name="action_name"
+                  default="/action_name"/>
+    </Action>
     <Condition ID="CheckHysteresisState">
       <input_port name="state"
                   default="{hysteresis_state}"/>
@@ -125,15 +137,14 @@
       <output_port name="filtered_position"
                    default="{filtered_position}"/>
     </Action>
-    <Action ID="RobotControl">
+    <Action ID="RobotControl"
+            editable="true">
       <input_port name="stop_gimbal_scan"
                   default="True"/>
       <input_port name="chassis_spin_vel"
                   default="0.0"/>
       <input_port name="gimbal_big_yaw_vel"
                   default="1.0"/>
-      <input_port name="gimbal_big_yaw_angle"
-                  default="π/4"/>
     </Action>
     <Action ID="SendMyGoal">
       <input_port name="my_goal_pose"

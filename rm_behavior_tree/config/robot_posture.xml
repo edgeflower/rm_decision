@@ -2,46 +2,152 @@
 <root BTCPP_format="4"
       main_tree_to_execute="BehaviorTree">
   <BehaviorTree ID="BehaviorTree">
-    <RateController hz="1">
-      <Sequence>
-        <SubRobotPosture topic_name="robot_posture_status"
-                          robot_posture_status="{robot_posture_status}"/>
-        <RobotControl stop_gimbal_scan="False"
-                      chassis_spin_vel="0.0"
-                      gimbal_big_yaw_vel="2.7"/>
-        <SetPosture robot_posture_status="{robot_posture_status}"
-                    override="False"/>
-      </Sequence>
-    </RateController>
+    <ReactiveSequence>
+      <SubRobotPosture topic_name="sentry_posture_status"
+                       posture="{robot_posture_status}"
+                       posture_status="{posture_status}"/>
+      <SubRobotStatus topic_name="robot_status"
+                      robot_status="{robot_status}"/>
+      <SubArmors topic_name="/target_tracking"
+                 armors="{armors}"/>
+      <EnemyPositionFilter enemy_position="{armors}"
+                           alpha="0.3"
+                           max_distance="1.5"
+                           history_size="5"
+                           zero_threshold="0.1"
+                           min_output_interval="0.1"
+                           confidence_half_life="1.0"
+                           min_confidence="0.1"
+                           filtered_position="{filtered_position}"/>
+      <ConfidenceHysteresis target="{filtered_position}"
+                            upper_threshold="0.4"
+                            lower_threshold="0.3"
+                            grace_period="1.5"
+                            enable_hold_position="true"
+                            current_confidence="{current_confidence}"
+                            hysteresis_state="{hysteresis_state}"/>
+      <ReactiveFallback>
+        <Sequence>
+          <IsAttacked message="{robot_status}"/>
+          <CancelNavigation action_name="/navigate_to_pose"/>
+          <SetPostureXin robot_posture_status="POSTURE_DEFENSE"
+                         override="True"/>
+          <Wait duration="5"/>
+        </Sequence>
+        <Sequence>
+          <CheckHysteresisState state="{hysteresis_state}"
+                                expected_state="HIGH"/>
+          <CancelNavigation action_name="/navigate_to_pose"/>
+          <SetPostureXin robot_posture_status="POSTURE_ATTACK"
+                         override="True"/>
+        </Sequence>
+        <Sequence>
+          <CheckHysteresisState state="{hysteresis_state}"
+                                expected_state="LOW"/>
+          <SetPostureXin robot_posture_status="POSTURE_MOVE"
+                         override="True"/>
+          <SendMyGoal name="NavigateToPoint1"
+                      my_goal_pose="5.92473;0.0;0;0;0;0.105351;0.994435"
+                      action_name="/navigate_to_pose"/>
+        </Sequence>
+      </ReactiveFallback>
+    </ReactiveSequence>
   </BehaviorTree>
 
   <!-- Description of Node Models (used by Groot) -->
   <TreeNodesModel>
-    <Decorator ID="RateController">
-      <input_port name="hz">Rate</input_port>
-    </Decorator>
-    <Action ID="RobotControl"
-            editable="true">
-      <input_port name="stop_gimbal_scan"
-                  default="True"/>
-      <input_port name="chassis_spin_vel"
-                  default="False"/>
-      <input_port name="gimbal_big_yaw_vel"
-                  default="1.0"/>
+    <Action ID="CancelNavigation">
+      <input_port name="action_name"
+                  default="/action_name"/>
     </Action>
-    <Action ID="SetPosture"
+    <Condition ID="CheckHysteresisState">
+      <input_port name="state"
+                  default="{hysteresis_state}"/>
+      <input_port name="expected_state"
+                  default="HIGH"/>
+    </Condition>
+    <Condition ID="ConfidenceHysteresis">
+      <input_port name="target"
+                  default="{filtered_target}"/>
+      <input_port name="upper_threshold"
+                  default="0.4"/>
+      <input_port name="lower_threshold"
+                  default="0.3"/>
+      <input_port name="grace_period"
+                  default="1.5"/>
+      <input_port name="enable_hold_position"
+                  default="true"/>
+      <output_port name="current_confidence"
+                   default="{current_confidence}"/>
+      <output_port name="hysteresis_state"
+                   default="{hysteresis_state}"/>
+    </Condition>
+    <Action ID="EnemyPositionFilter"
+            editable="true">
+      <input_port name="enemy_position"
+                  default="{armors}"/>
+      <input_port name="alpha"
+                  default="0.3"/>
+      <input_port name="max_distance"
+                  default="1.5"/>
+      <input_port name="history_size"
+                  default="5"/>
+      <input_port name="zero_threshold"
+                  default="0.1"/>
+      <input_port name="min_output_interval"
+                  default="0.1"/>
+      <input_port name="confidence_half_life"
+                  default="1.0"/>
+      <input_port name="min_confidence"
+                  default="0.0"/>
+      <output_port name="filtered_position"
+                   default="{filtered_position}"/>
+    </Action>
+    <Action ID="IsAttacked"
+            editable="true">
+      <input_port name="message"
+                  default="{robot_status}"/>
+    </Action>
+    <Action ID="SendMyGoal">
+      <input_port name="my_goal_pose"
+                  default="{best_goal}"/>
+      <input_port name="action_name"
+                  default="/navigate_to_pose"/>
+    </Action>
+    <Action ID="SetPostureXin"
             editable="true">
       <input_port name="robot_posture_status"
                   default="{robot_posture_status}"/>
       <input_port name="override"
                   default="False"/>
     </Action>
+    <Action ID="SubArmors"
+            editable="true">
+      <input_port name="topic_name"
+                  default="/detector/armors"/>
+      <output_port name="armors"
+                   default="{armors}"/>
+    </Action>
     <Action ID="SubRobotPosture"
             editable="true">
       <input_port name="topic_name"
-                  default="robot_posture_status"/>
-      <out_port name="robot_posture_status"
-                  default="{robot_posture_status}"/>
+                  default="sentry_posture_status"/>
+      <output_port name="posture"
+                   default="{robot_posture_status}"/>
+      <output_port name="posture_status"
+                   default="{posture_status}"/>
+    </Action>
+    <Action ID="SubRobotStatus"
+            editable="true">
+      <input_port name="topic_name"
+                  default="robot_status"/>
+      <output_port name="robot_status"
+                   default="{robot_status}"/>
+    </Action>
+    <Action ID="Wait"
+            editable="true">
+      <input_port name="duration"
+                  default="3"/>
     </Action>
   </TreeNodesModel>
 

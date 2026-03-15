@@ -92,6 +92,11 @@ ament_auto_add_library(set_posture SHARED
   plugins/action/set_posture.cpp)
 add_target_dependencies(set_posture)
 
+# Set Posture Xin (Simulation) Action Node
+ament_auto_add_library(set_posture_xin SHARED
+  plugins/action/set_posture_xin.cpp)
+add_target_dependencies(set_posture_xin)
+
 ament_auto_add_library(sub_all_robot_hp SHARED
   plugins/action/sub_all_robot_hp.cpp)
 add_target_dependencies(sub_all_robot_hp)

@@ -91,7 +91,7 @@ private:
 
         BT::RosNodeParams params_set_posture;
         params_set_posture.nh = std::make_shared<rclcpp::Node>("set_posture");
-        params_set_posture.default_port_value = "set_posture";
+        params_set_posture.default_port_value = "set_sentry_posture";
 
         // Parameters for goal_manager (subscribes to /observation_points)
         BT::RosNodeParams params_goal_manager;
@@ -154,7 +154,8 @@ private:
             "check_hysteresis_state",
             "abort_navigation",
             "wait",
-            "is_goal_reached"
+            "is_goal_reached",
+            "set_posture_xin"
             // Note: goal_manager, should_reset_observation, get_robot_location removed
             // They will be registered using RegisterRosNode below
         };
