@@ -2,8 +2,9 @@ import os  # 导入操作系统接口模块，用于路径拼接
 from ament_index_python.packages import get_package_share_directory
 from launch import LaunchDescription
 from launch_ros.actions import Node , SetRemap , PushRosNamespace
-from launch.actions import DeclareLaunchArgument, GroupAction
+from launch.actions import DeclareLaunchArgument, GroupAction,ExecuteProcess
 from launch.substitutions import LaunchConfiguration, PathJoinSubstitution
+from datetime import datetime
 
 def generate_launch_description():
 
@@ -19,7 +20,7 @@ def generate_launch_description():
     
     style_cmd = DeclareLaunchArgument(
             'style',
-            default_value="robot_posture", # attack_robot  defense_robot  test1 test2 test3
+            default_value="liu", # attack_robot  defense_robot  test1 test2 test3
             description="选取哪一个进攻防御方式  map1  test0	test test2	rmul2025_01 test3 "
         )
 
@@ -69,6 +70,41 @@ def generate_launch_description():
         ]
 
     )
+     
+    bag_base_dir = os.path.expanduser('/home/sentry/Desktop/ros_ws/ros_bag')
+    time_str = datetime.now().strftime('%Y%m%d_%H%M%S')
+    bag_folder = os.path.join(bag_base_dir, f'rm_session_{time_str}')
+
+    # 2. 定义需要录制的话题列表
+    # 技巧：录制 /tf_static 和 /rosout 对后期复盘非常有用
+    topics_to_record = [
+        '/livox/lidar',
+        '/livox/imu',
+        '/game_status',
+        "/robot_status",
+        '/tf',
+        '/tf_static',
+        '/cmd_vel_chassis'
+    ]
+
+    # 3. 构建 ros2 bag record 命令
+    # --storage mcap: 核心！掉电保护格式，即使非法关机数据也不会损坏
+    # --max-bag-size: 达到 500MB 自动分包，防止单文件过大导致内存压力
+    record_command = [
+        'ros2', 'bag', 'record',
+        '-o', bag_folder,
+        '--storage', 'mcap'
+    ] + topics_to_record
+
+    # 4. 创建执行进程
+    bag_recorder = ExecuteProcess(
+        cmd=record_command,
+        output='screen',
+        # 确保在退出时发送 SIGINT，让 rosbag2 有机会写入 metadata
+        sigterm_timeout='5',
+        sigkill_timeout='5'
+    )
+
     ld = LaunchDescription()
     
     ld.add_action(namespace_cmd)
@@ -77,6 +113,7 @@ def generate_launch_description():
     ld.add_action(log_level_cmd)
     #ld.add_action(bringup_group)
     ld.add_action(rm_behavior_tree_node)
+    ld.add_action(bag_recorder)
     
     
     return ld

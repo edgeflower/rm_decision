@@ -22,7 +22,7 @@ BT::NodeStatus IsGameTimeCondition::CheckGameStart()
 
     if (
         msg->game_progress  == game_progress && msg->stage_remain_time >= lower_remain_time &&
-        msg->stage_remain_time <= msg->stage_remain_time)
+        msg->stage_remain_time <= higher_remain_time)
         {return BT::NodeStatus::SUCCESS;}
     else {
         return BT::NodeStatus::FAILURE;

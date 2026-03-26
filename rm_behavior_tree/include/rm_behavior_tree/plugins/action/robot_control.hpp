@@ -19,8 +19,13 @@ public:
         return{BT::InputPort<bool>("stop_gimbal_scan"),
                BT::InputPort<float>("chassis_spin_vel"),
                BT::InputPort<float>("gimbal_big_yaw_vel"),
-               BT::InputPort<float>("gimbal_big_yaw_angle")};
+               BT::InputPort<float>("gimbal_big_yaw_angle"),
+              BT::InputPort<float>("follow_gimbal_big"),
+            BT::InputPort<float>("chassis_vel_multi"),
+          BT::InputPort<bool>("stop_chassis_vel_multi")};
      }
+private:
+ bool chassis_vel_multi_;
 };
 } // namespace rm_behavior_tree
 

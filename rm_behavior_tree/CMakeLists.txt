@@ -74,6 +74,11 @@ ament_auto_add_library(get_robot_location SHARED
 )
 add_target_dependencies(get_robot_location)
 
+ament_auto_add_library(back_up SHARED
+  plugins/action/back_up.cpp
+)
+add_target_dependencies(back_up)
+
 ament_auto_add_library(move_around SHARED
   plugins/action/move_around.cpp
 )
@@ -148,6 +153,11 @@ ament_auto_add_library(wait SHARED
   plugins/action/wait.cpp)
 add_target_dependencies(wait)
 
+# Bag Recorder Action Node
+ament_auto_add_library(bag_recorder SHARED
+  plugins/action/bag_recorder.cpp)
+add_target_dependencies(bag_recorder)
+
 # Goal Manager Action Node
 ament_auto_add_library(goal_manager SHARED
   plugins/action/goal_manager.cpp)
@@ -167,6 +177,16 @@ add_target_dependencies(calculate_angle)
 ament_auto_add_library(cancel_navigation SHARED
   plugins/action/cancel_navigation.cpp)
 add_target_dependencies(cancel_navigation)
+
+# Sub CmdVel Action Node
+ament_auto_add_library(sub_cmd_vel SHARED
+  plugins/action/sub_cmd_vel.cpp)
+add_target_dependencies(sub_cmd_vel)
+
+# Clear Costmap Action Node
+ament_auto_add_library(clear_costmap SHARED
+  plugins/action/clear_costmap.cpp)
+add_target_dependencies(clear_costmap)
 
 # Map Processor Node (independent ROS2 node)
 ament_auto_add_executable(map_processor_node
@@ -222,6 +242,11 @@ add_target_dependencies(check_hysteresis_state)
 ament_auto_add_library(is_hp_ok SHARED
   plugins/condition/is_hp_ok.cpp)
 add_target_dependencies(is_hp_ok)
+
+# Is Stuck Condition Node
+ament_auto_add_library(is_stuck SHARED
+  plugins/condition/is_stuck.cpp)
+add_target_dependencies(is_stuck)
 
 # control
 ament_auto_add_library(decision_switch SHARED

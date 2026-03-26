@@ -78,7 +78,9 @@ int main(int argc, char ** argv)
         "is_outpost_ok",
         "get_current_location",
         "move_around",
+        "back_up",
         "print_message",
+        "bag_recorder",
     };
     //--------------------------注册插件--------------------------
     // 依次将各插件注册到行为树厂中，便于后续再行为树中调用

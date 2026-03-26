@@ -6,7 +6,7 @@ namespace rm_behavior_tree
 {
 
 ConfidenceHysteresis::ConfidenceHysteresis(const std::string &name, const BT::NodeConfiguration &config)
-    : BT::SimpleConditionNode(name, std::bind(&ConfidenceHysteresis::checkConfidenceHysteresis, this), config)
+    : BT::ConditionNode(name, config)
 {
     // Get parameters with defaults
     getInput<double>("upper_threshold", upper_threshold_);
@@ -26,22 +26,28 @@ ConfidenceHysteresis::ConfidenceHysteresis(const std::string &name, const BT::No
                 lower_threshold_, upper_threshold_, grace_period_);
 }
 
-BT::NodeStatus ConfidenceHysteresis::checkConfidenceHysteresis()
+BT::NodeStatus ConfidenceHysteresis::tick()
 {
+    // 检测 halt：如果上一帧状态不是 IDLE，现在变成了 IDLE，说明节点被 halt 了
+    checkAndHandleHalt();
+
+    // 支持 Groot2 在线调参（动态更新参数，开销极小）
+    getInput("upper_threshold", upper_threshold_);
+    getInput("lower_threshold", lower_threshold_);
+    getInput("grace_period", grace_period_);
+    getInput("enable_hold_position", enable_hold_position_);
+
     rclcpp::Time now = rclcpp::Clock().now();
 
     // Get current target
+    auto target_result = getInput<armor_interfaces::msg::Target>("target");
+    bool has_target = target_result.has_value();
     armor_interfaces::msg::Target target;
-    if (!getInput<armor_interfaces::msg::Target>("target", target)) {
-        // No target data, reset to low confidence but continue execution
-        // 返回 SUCCESS 让行为树继续，下游节点应该检查 hysteresis_state 来决定是否巡逻
-        current_state_ = State::LOW_CONFIDENCE;
-        setOutput("hysteresis_state", std::string("LOW")); // 使用LOW就行，下游节点根据这个状态决定是否进入巡逻模式
-        setOutput("current_confidence", 0.0);
-        return BT::NodeStatus::SUCCESS;
+    if (has_target) {
+        target = target_result.value();
     }
 
-    double confidence = target.confidence;
+    double confidence = has_target ? target.confidence : 0.0;
     setOutput("current_confidence", confidence);
 
     // 状态机逻辑
@@ -49,92 +55,143 @@ BT::NodeStatus ConfidenceHysteresis::checkConfidenceHysteresis()
         case State::HIGH_CONFIDENCE:
             // 高置信度状态：检查是否应该进入观察期
             if (shouldEnterGracePeriod(confidence)) {
-                current_state_ = State::GRACE_PERIOD;
+                transitionTo(State::GRACE_PERIOD);
                 grace_period_start_ = now;
 
-                RCLCPP_INFO(rclcpp::get_logger("ConfidenceHysteresis"),
-                            "State: HIGH -> GRACE_PERIOD (confidence: %.2f <= %.2f)",
-                            confidence, upper_threshold_);
-
                 // 保存最后有效目标用于保持位置
-                if (enable_hold_position_) {
+                if (enable_hold_position_ && has_target) {
                     last_valid_target_ = target;
                 }
-            } else {
-                RCLCPP_DEBUG(rclcpp::get_logger("ConfidenceHysteresis"),
-                             "State: HIGH (confidence: %.2f)", confidence);
+
+                logStateTransition(State::GRACE_PERIOD, confidence, now);
             }
             setOutput("hysteresis_state", stateToString(current_state_));
+            previous_status_ = BT::NodeStatus::SUCCESS;
             return BT::NodeStatus::SUCCESS;
 
         case State::GRACE_PERIOD:
             // 观察期：检查是否应该回到高置信度或进入低置信度
             if (shouldReturnToHighConfidence(confidence)) {
                 // 置信度回升，立即回到高置信度状态
-                current_state_ = State::HIGH_CONFIDENCE;
+                transitionTo(State::HIGH_CONFIDENCE);
+                last_high_confidence_time_ = now;
 
-                RCLCPP_INFO(rclcpp::get_logger("ConfidenceHysteresis"),
-                            "State: GRACE_PERIOD -> HIGH (confidence recovered: %.2f)",
-                            confidence);
-
+                logStateTransition(State::HIGH_CONFIDENCE, confidence, now);
                 setOutput("hysteresis_state", stateToString(current_state_));
+                previous_status_ = BT::NodeStatus::SUCCESS;
                 return BT::NodeStatus::SUCCESS;
             }
 
             if (shouldExitGracePeriod(now, confidence)) {
                 // 观察期结束，置信度仍然低，切换到巡逻模式
-                current_state_ = State::LOW_CONFIDENCE;
+                transitionTo(State::LOW_CONFIDENCE);
 
                 double elapsed = getGracePeriodElapsed(now);
                 RCLCPP_INFO(rclcpp::get_logger("ConfidenceHysteresis"),
-                            "State: GRACE_PERIOD -> LOW (grace period ended: %.1fs, final confidence: %.2f)",
+                            "GRACE_PERIOD -> LOW (grace period ended: %.1fs, final confidence: %.2f)",
                             elapsed, confidence);
 
                 setOutput("hysteresis_state", stateToString(current_state_));
+                previous_status_ = BT::NodeStatus::SUCCESS;
                 return BT::NodeStatus::SUCCESS;  // 状态计算器始终返回SUCCESS，由CheckHysteresisState判断
             }
 
             // 仍在观察期
-            RCLCPP_DEBUG(rclcpp::get_logger("ConfidenceHysteresis"),
-                        "State: GRACE_PERIOD (elapsed: %.1fs/%.1fs, confidence: %.2f)",
-                        getGracePeriodElapsed(now), grace_period_, confidence);
-
-            // 观察期内继续返回 SUCCESS（保持追逐模式）
             setOutput("hysteresis_state", stateToString(current_state_));
+            previous_status_ = BT::NodeStatus::SUCCESS;
             return BT::NodeStatus::SUCCESS;
 
         case State::LOW_CONFIDENCE:
             // 低置信度状态：检查是否应该回到高置信度
             if (shouldReturnToHighConfidence(confidence)) {
                 // 置信度回升，立即切换回追逐模式
-                current_state_ = State::HIGH_CONFIDENCE;
+                transitionTo(State::HIGH_CONFIDENCE);
                 last_high_confidence_time_ = now;
 
-                RCLCPP_INFO(rclcpp::get_logger("ConfidenceHysteresis"),
-                            "State: LOW -> HIGH (confidence recovered: %.2f)",
-                            confidence);
-
+                logStateTransition(State::HIGH_CONFIDENCE, confidence, now);
                 setOutput("hysteresis_state", stateToString(current_state_));
+                previous_status_ = BT::NodeStatus::SUCCESS;
                 return BT::NodeStatus::SUCCESS;
             }
 
-            RCLCPP_DEBUG(rclcpp::get_logger("ConfidenceHysteresis"),
-                        "State: LOW (confidence: %.2f)", confidence);
-
             setOutput("hysteresis_state", stateToString(current_state_));
+            previous_status_ = BT::NodeStatus::SUCCESS;
             return BT::NodeStatus::SUCCESS;  // 状态计算器始终返回SUCCESS，由CheckHysteresisState判断
     }
 
+    previous_status_ = BT::NodeStatus::SUCCESS;
     return BT::NodeStatus::SUCCESS;  // Should not reach here, but default to SUCCESS
+}
+
+void ConfidenceHysteresis::checkAndHandleHalt()
+{
+    // 检测 halt：如果上一帧状态不是 IDLE，现在变成了 IDLE，说明节点被 halt 了
+    if (previous_status_ != BT::NodeStatus::IDLE && status() == BT::NodeStatus::IDLE) {
+        State old_state = current_state_;
+        current_state_ = State::LOW_CONFIDENCE;
+        previous_state_ = State::LOW_CONFIDENCE;
+        grace_period_start_ = rclcpp::Time(0, 0, RCL_ROS_TIME);
+        last_high_confidence_time_ = rclcpp::Time(0, 0, RCL_ROS_TIME);
+
+        if (old_state != State::LOW_CONFIDENCE) {
+            RCLCPP_DEBUG(rclcpp::get_logger("ConfidenceHysteresis"),
+                         "Node halted (status IDLE detected), state reset from %s to LOW",
+                         stateToString(old_state).c_str());
+        }
+    }
 }
 
 void ConfidenceHysteresis::reset()
 {
     current_state_ = State::LOW_CONFIDENCE;
+    previous_state_ = State::LOW_CONFIDENCE;
     grace_period_start_ = rclcpp::Time(0, 0, RCL_ROS_TIME);
     last_high_confidence_time_ = rclcpp::Time(0, 0, RCL_ROS_TIME);
 
-    RCLCPP_INFO(rclcpp::get_logger("ConfidenceHysteresis"), "State reset to LOW");
+    // 清除目标缓存，防止切换目标后旧坐标影响决策
+    last_valid_target_ = armor_interfaces::msg::Target();
+
+    RCLCPP_INFO(rclcpp::get_logger("ConfidenceHysteresis"), "State reset to LOW, target cache cleared");
+}
+
+void ConfidenceHysteresis::clearTargetCache()
+{
+    last_valid_target_ = armor_interfaces::msg::Target();
+    RCLCPP_DEBUG(rclcpp::get_logger("ConfidenceHysteresis"), "Target cache cleared");
+}
+
+void ConfidenceHysteresis::transitionTo(State new_state)
+{
+    previous_state_ = current_state_;
+    current_state_ = new_state;
+}
+
+void ConfidenceHysteresis::logStateTransition(State new_state, double confidence, const rclcpp::Time &now)
+{
+    const char* old_str = stateToString(previous_state_).c_str();
+    const char* new_str = stateToString(new_state).c_str();
+
+    switch (new_state) {
+        case State::HIGH_CONFIDENCE:
+            RCLCPP_INFO(rclcpp::get_logger("ConfidenceHysteresis"),
+                        "%s -> HIGH (confidence recovered: %.2f)", old_str, confidence);
+            break;
+
+        case State::GRACE_PERIOD:
+            RCLCPP_INFO(rclcpp::get_logger("ConfidenceHysteresis"),
+                        "%s -> GRACE_PERIOD (confidence: %.2f <= %.2f)",
+                        old_str, confidence, upper_threshold_);
+            break;
+
+        case State::LOW_CONFIDENCE:
+            {
+                double elapsed = getGracePeriodElapsed(now);
+                RCLCPP_INFO(rclcpp::get_logger("ConfidenceHysteresis"),
+                            "%s -> LOW (grace period ended: %.1fs, final confidence: %.2f)",
+                            old_str, elapsed, confidence);
+            }
+            break;
+    }
 }
 
 std::string ConfidenceHysteresis::stateToString(State state) const
@@ -170,9 +227,9 @@ bool ConfidenceHysteresis::shouldExitGracePeriod(const rclcpp::Time &now, double
 {
     // 从观察期切换到低置信度的条件：
     // 1. 观察期时间已满
-    // 2. 置信度仍然低于下阈值
+    // 2. 置信度没有回到 HIGH（避免"中间地带"卡死）
     double elapsed = getGracePeriodElapsed(now);
-    return (elapsed >= grace_period_) && (confidence < lower_threshold_);
+    return (elapsed >= grace_period_) && !shouldReturnToHighConfidence(confidence);
 }
 
 bool ConfidenceHysteresis::shouldReturnToHighConfidence(double confidence)

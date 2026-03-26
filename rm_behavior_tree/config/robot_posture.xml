@@ -3,11 +3,8 @@
       main_tree_to_execute="BehaviorTree">
   <BehaviorTree ID="BehaviorTree">
     <ReactiveSequence>
-      <SubRobotPosture topic_name="sentry_posture_status"
-                       posture="{robot_posture_status}"
-                       posture_status="{posture_status}"/>
-      <SubRobotStatus topic_name="robot_status"
-                      robot_status="{robot_status}"/>
+      <SetPostureXin robot_posture_status="POSTURE_DEFENSE"
+                     override="True"/>
       <SubArmors topic_name="/target_tracking"
                  armors="{armors}"/>
       <EnemyPositionFilter enemy_position="{armors}"
@@ -28,18 +25,12 @@
                             hysteresis_state="{hysteresis_state}"/>
       <ReactiveFallback>
         <Sequence>
-          <IsAttacked message="{robot_status}"/>
-          <CancelNavigation action_name="/navigate_to_pose"/>
-          <SetPostureXin robot_posture_status="POSTURE_DEFENSE"
-                         override="True"/>
-          <Wait duration="5"/>
-        </Sequence>
-        <Sequence>
           <CheckHysteresisState state="{hysteresis_state}"
                                 expected_state="HIGH"/>
           <CancelNavigation action_name="/navigate_to_pose"/>
           <SetPostureXin robot_posture_status="POSTURE_ATTACK"
                          override="True"/>
+          <Wait duration="15"/>
         </Sequence>
         <Sequence>
           <CheckHysteresisState state="{hysteresis_state}"
@@ -49,6 +40,7 @@
           <SendMyGoal name="NavigateToPoint1"
                       my_goal_pose="5.92473;0.0;0;0;0;0.105351;0.994435"
                       action_name="/navigate_to_pose"/>
+          <Wait duration="15"/>
         </Sequence>
       </ReactiveFallback>
     </ReactiveSequence>
@@ -103,11 +95,6 @@
       <output_port name="filtered_position"
                    default="{filtered_position}"/>
     </Action>
-    <Action ID="IsAttacked"
-            editable="true">
-      <input_port name="message"
-                  default="{robot_status}"/>
-    </Action>
     <Action ID="SendMyGoal">
       <input_port name="my_goal_pose"
                   default="{best_goal}"/>
@@ -127,22 +114,6 @@
                   default="/detector/armors"/>
       <output_port name="armors"
                    default="{armors}"/>
-    </Action>
-    <Action ID="SubRobotPosture"
-            editable="true">
-      <input_port name="topic_name"
-                  default="sentry_posture_status"/>
-      <output_port name="posture"
-                   default="{robot_posture_status}"/>
-      <output_port name="posture_status"
-                   default="{posture_status}"/>
-    </Action>
-    <Action ID="SubRobotStatus"
-            editable="true">
-      <input_port name="topic_name"
-                  default="robot_status"/>
-      <output_port name="robot_status"
-                   default="{robot_status}"/>
     </Action>
     <Action ID="Wait"
             editable="true">

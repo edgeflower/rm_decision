@@ -33,7 +33,7 @@ namespace rm_behavior_tree
  * 使用场景:
  * 在 BT 中放在 IsTracking 节点之前，提供模式切换的迟滞效果
  */
-class ConfidenceHysteresis : public BT::SimpleConditionNode
+class ConfidenceHysteresis : public BT::ConditionNode
 {
 public:
     enum class State : uint8_t {
@@ -43,6 +43,8 @@ public:
     };
 
     ConfidenceHysteresis(const std::string &name, const BT::NodeConfiguration &config);
+
+    BT::NodeStatus tick() override;
 
     static BT::PortsList providedPorts()
     {
@@ -57,15 +59,20 @@ public:
         };
     }
 
-    BT::NodeStatus checkConfidenceHysteresis();
-
     // 重置状态（例如检测到新敌人时）
     void reset();
 
+    // 清除目标缓存（用于切换目标场景）
+    void clearTargetCache();
+
 private:
     State current_state_ = State::LOW_CONFIDENCE;
+    State previous_state_ = State::LOW_CONFIDENCE;  // 用于检测状态迁移
     rclcpp::Time grace_period_start_;
     rclcpp::Time last_high_confidence_time_;
+
+    // 上一帧的状态，用于检测 halt（节点状态从非 IDLE 变为 IDLE 说明被 halt 了）
+    BT::NodeStatus previous_status_ = BT::NodeStatus::IDLE;
 
     // Parameters (cached)
     double upper_threshold_ = 0.4;
@@ -89,6 +96,15 @@ private:
 
     // 检查是否应该从低置信度直接回到高置信度
     bool shouldReturnToHighConfidence(double confidence);
+
+    // 状态迁移辅助方法
+    void transitionTo(State new_state);
+
+    // 状态迁移日志（仅在状态改变时打印）
+    void logStateTransition(State new_state, double confidence, const rclcpp::Time &now);
+
+    // 检测并处理 halt（ConditionNode::halt() 是 final 的，无法 override）
+    void checkAndHandleHalt();
 };
 
 } // namespace rm_behavior_tree

@@ -123,6 +123,11 @@ private:
         params_calulate_angle.nh = getSharedPtr();
         params_calulate_angle.default_port_value = "/goal_pose"; // 主要输入，另外还会订阅 /robot_location
 
+        // 
+        BT::RosNodeParams params_clear_costmap;
+        params_clear_costmap.nh = getSharedPtr();
+        params_clear_costmap.default_port_value = "which"; // 输入 local global around 来选择清除哪个代价地图
+
 
         const std::vector<std::string> msg_update_plugins_libs = {
             "sub_all_robot_hp",
@@ -155,7 +160,8 @@ private:
             "abort_navigation",
             "wait",
             "is_goal_reached",
-            "set_posture_xin"
+            "set_posture_xin",
+            "bag_recorder"
             // Note: goal_manager, should_reset_observation, get_robot_location removed
             // They will be registered using RegisterRosNode below
         };
@@ -184,6 +190,7 @@ private:
         RegisterRosNode(*factory, BT::SharedLibrary::getOSName("get_location"), params_get_location);
         RegisterRosNode(*factory, BT::SharedLibrary::getOSName("cancel_navigation"), params_cancel_navigation);
         RegisterRosNode(*factory, BT::SharedLibrary::getOSName("calculate_angle"), params_calulate_angle);
+        RegisterRosNode(*factory,BT::SharedLibrary::getOSName("clear_costmap"),params_clear_costmap);
     }
 
     // 成员变量
