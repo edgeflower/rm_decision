@@ -13,3 +13,6 @@ bool is_attacked # 是否收到攻击 0->未受到攻击 1->受到攻击
 # uint8 reported_posture # 来自裁判系统 0x020D
 # uint8 posture # 0x0120
 
+# 17mm 弹丸剩余量
+uint16 shot_allowance
+

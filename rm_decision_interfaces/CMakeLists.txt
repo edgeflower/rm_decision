@@ -32,6 +32,7 @@ rosidl_generate_interfaces(${PROJECT_NAME}
   "msg/ObservationPoints.msg"
   "msg/GoalStatus.msg"
   "srv/SetSentryPosture.srv"
+  "msg/RFIDParse.msg"
 
   DEPENDENCIES
     std_msgs
