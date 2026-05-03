@@ -2,33 +2,42 @@
 <root BTCPP_format="4"
       main_tree_to_execute="BehaviorTree">
   <BehaviorTree ID="BehaviorTree">
-    <Sequence>
-      <NavigateThroughPoses waypoint_file="/home/lu/3V3/config/waypoints/patrol.csv"
-                            frame_id="map"
-                            current_waypoint="{wp_idx}"/>
-      <GetCurrentWaypoint waypoints="{waypoints}"
-                          wait_times="{wait_times}"
-                          wp_idx="{wp_idx}"
-                          current_goal="{current_goal}"
-                          current_wait_sec="{current_wait}"/>
-      <LoadWaypoints waypoint_file="/home/lu/3V3/config/waypoints/patrol.csv"
+    <ReactiveSequence>
+      <SubRobotStatus topic_name="/robot_status"
+                      robot_status="{robot_status}"/>
+      <SubGameStatus topic_name="/game_status"
+                     game_status="{game_status}"/>
+      <Sequence>
+        <NavigateThroughPoses waypoint_file="/home/lu/3V3/config/waypoints/patrol.csv"
+                              frame_id="map"
+                              current_waypoint="{wp_idx}"/>
+        <LoadWaypoints waypoint_file="/home/lu/3V3/config/waypoints/patrol.csv"
+                       frame_id="map"
+                       waypoints="{waypoints}"
+                       wait_times="{wait_times}"
+                       total_waypoints="{total_wp}"
+                       wp_idx="{wp_idx}"/>
+        <GetCurrentWaypoint waypoints="{waypoints}"
+                            wait_times="{wait_times}"
+                            wp_idx="{wp_idx}"
+                            current_goal="{current_goal}"
+                            current_wait_sec="{current_wait}"/>
+        <PubNav2Goal goal_pose="{current_goal}"
                      frame_id="map"
-                     waypoints="{waypoints}"
-                     wait_times="{wait_times}"
-                     total_waypoints="{total_wp}"
-                     wp_idx="{wp_idx}"/>
-      <PubNav2Goal goal_pose="{current_goal}"
-                   frame_id="map"
-                   min_pub_interval_ms="100"/>
-      <RobotControl stop_gimbal_scan="True"
-                    chassis_spin_vel="0.8"
-                    gimbal_big_yaw_vel="0.0"
-                    gimbal_big_yaw_angle="0.0"
-                    follow_gimbal_big="false"
-                    chassis_vel_multi="3.0"
-                    stop_chassis_vel_multi="True"
-                    track_status="false"/>
-    </Sequence>
+                     min_pub_interval_ms="{current_wait}"/>
+        <WaitUntilReached name="WaitUntilReached 控制 点位停留时间"
+                          goal_pose="{current_goal}"
+                          tolerance="0.5"/>
+        <RobotControl stop_gimbal_scan="True"
+                      chassis_spin_vel="0.8"
+                      gimbal_big_yaw_vel="0.0"
+                      gimbal_big_yaw_angle="0.0"
+                      follow_gimbal_big="false"
+                      chassis_vel_multi="3.0"
+                      stop_chassis_vel_multi="True"
+                      track_status="false"/>
+      </Sequence>
+    </ReactiveSequence>
   </BehaviorTree>
 
   <!-- Description of Node Models (used by Groot) -->
@@ -89,6 +98,25 @@
                   default="True"/>
       <input_port name="track_status"
                   default="false"/>
+    </Action>
+    <Action ID="SubGameStatus"
+            editable="true">
+      <input_port name="topic_name"
+                  default="game_status"/>
+      <output_port name="game_status"
+                   default="{game_status}"/>
+    </Action>
+    <Action ID="SubRobotStatus"
+            editable="true">
+      <input_port name="topic_name"
+                  default="robot_status"/>
+      <output_port name="robot_status"
+                   default="{robot_status}"/>
+    </Action>
+    <Action ID="WaitUntilReached">
+      <input_port name="goal_pose"/>
+      <input_port name="tolerance"
+                  default="0.5"/>
     </Action>
   </TreeNodesModel>
 

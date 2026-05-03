@@ -1,24 +1,19 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<root BTCPP_format="4">
-  <BehaviorTree ID="attack_robot_improved_v2">
+<root BTCPP_format="4"
+      main_tree_to_execute="follow">
+  <BehaviorTree ID="follow">
     <Sequence>
       <ReactiveSequence name="Perception">
         <SubArmors topic_name="/target_tracking"
                    armors="{armors}"/>
-        <SubRobotStatus topic_name="/robot_status"/>
-        <RobotControl stop_gimbal_scan="True"
-                      chassis_spin_vel="0.0"
-                      gimbal_big_yaw_vel="40.0"
-                      gimbal_big_yaw_angle="0.0"
-                      follow_gimbal_big="true"
-                      chassis_vel_multi="1.0"
-                      stop_chassis_vel_multi="True"
-                      track_status="false"/>
         <EnemyPositionFilter enemy_position="{armors}"
                              alpha="0.2"
                              max_distance="1.0"
                              history_size="7"
                              zero_threshold="0.1"
+                             min_output_interval="0.1"
+                             confidence_half_life="1.0"
+                             min_confidence="0.0"
                              filtered_position="{filtered_target}"/>
         <ConfidenceHysteresis target="{filtered_target}"
                               upper_threshold="0.5"
@@ -28,8 +23,6 @@
                               current_confidence="{current_confidence}"
                               hysteresis_state="{hysteresis_state}"/>
       </ReactiveSequence>
-      <GetLocation topic_name="/odometry"
-                   robot_location="{robot_pose}"/>
       <ReactiveFallback name="BehaviorSelector">
         <ReactiveSequence name="AttackEnemy">
           <CheckHysteresisState state="{hysteresis_state}"
@@ -54,58 +47,15 @@
         <ReactiveSequence name="HoldPositionMode">
           <CheckHysteresisState state="{hysteresis_state}"
                                 expected_state="GRACE_PERIOD"/>
-          <Once>
-            <HoldPosition target="{filtered_target}"
-                          enabled="true"
-                          robot_pose="{robot_pose}"
-                          held_goal="{hold_goal}"
-                          is_holding="{is_holding}"/>
-            <SetBlackboard value="true"
-                           output_key="hold_goal_set"/>
-          </Once>
+          <HoldPosition target="{filtered_target}"
+                        enabled="true"
+                        robot_pose="{robot_pose}"
+                        held_goal="{hold_goal}"
+                        is_holding="{is_holding}"/>
           <SendGoal goal_pose="{hold_goal}"
                     action_name="/navigate_to_pose"
                     current_goal_id="-2"
                     reached_goal_id="{hold_reached_goal_id}"/>
-        </ReactiveSequence>
-        <ReactiveSequence name="PatrolMode">
-          <CheckHysteresisState state="{hysteresis_state}"
-                                expected_state="LOW"/>
-          <SetBlackboard value="false"
-                         output_key="attack_goal_sent"/>
-          <SetBlackboard value="false"
-                         output_key="hold_goal_set"/>
-          <SetBlackboard value="-1"
-                         output_key="attack_reached_goal_id"/>
-          <SetBlackboard value="-1"
-                         output_key="hold_reached_goal_id"/>
-          <GoalManager robot_pose="{robot_pose}"
-                       lethal_threshold="252"
-                       high_cost_threshold="200"
-                       visit_timeout="20.0"
-                       max_retries="1"
-                       reset_requested="false"
-                       hysteresis_threshold="0.7"
-                       arrival_distance="0.5"
-                       arrival_speed="0.2"
-                       stay_duration="1.0"
-                       min_exclusion_radius="1.0"
-                       robot_speed="{robot_speed}"
-                       auto_reset_cooldown="5.0"
-                       completed_point_cooldown="10.0"
-                       skipped_recovery_time="30.0"
-                       reached_goal_id="{patrol_reached_goal_id}"
-                       best_goal="{best_goal}"
-                       selected_id="{goal_id}"
-                       should_reset="{should_reset}"
-                       idle_count="{idle_count}"
-                       done_count="{done_count}"
-                       goal_statuses="{goal_statuses}"/>
-          <SendGoal name="NavigateToObservation"
-                    goal_pose="{best_goal}"
-                    action_name="/navigate_to_pose"
-                    current_goal_id="{goal_id}"
-                    reached_goal_id="{patrol_reached_goal_id}"/>
         </ReactiveSequence>
       </ReactiveFallback>
     </Sequence>
@@ -184,58 +134,6 @@
       <output_port name="filtered_position"
                    default="{filtered_position}"/>
     </Action>
-    <Action ID="GetLocation">
-      <input_port name="topic_name"
-                  default="/odometry"/>
-      <output_port name="robot_location"
-                   default="{robot_pose}"/>
-    </Action>
-    <Action ID="GoalManager">
-      <input_port name="robot_pose"
-                  default="{robot_pose}"/>
-      <input_port name="lethal_threshold"
-                  default="252"/>
-      <input_port name="high_cost_threshold"
-                  default="200"/>
-      <input_port name="visit_timeout"
-                  default="30.0"/>
-      <input_port name="max_retries"
-                  default="2"/>
-      <input_port name="reset_requested"
-                  default="false"/>
-      <input_port name="hysteresis_threshold"
-                  default="0.7"/>
-      <input_port name="arrival_distance"
-                  default="0.5"/>
-      <input_port name="arrival_speed"
-                  default="0.2"/>
-      <input_port name="stay_duration"
-                  default="1.0"/>
-      <input_port name="min_exclusion_radius"
-                  default="2.0"/>
-      <input_port name="robot_speed"
-                  default="0.0"/>
-      <input_port name="auto_reset_cooldown"
-                  default="5.0"/>
-      <input_port name="completed_point_cooldown"
-                  default="10.0"/>
-      <input_port name="skipped_recovery_time"
-                  default="30.0"/>
-      <input_port name="reached_goal_id"
-                  default="{reached_goal_id}"/>
-      <output_port name="best_goal"
-                   default="{best_goal}"/>
-      <output_port name="selected_id"
-                   default="{goal_id}"/>
-      <output_port name="should_reset"
-                   default="{should_reset}"/>
-      <output_port name="idle_count"
-                   default="{idle_count}"/>
-      <output_port name="done_count"
-                   default="{done_count}"/>
-      <output_port name="goal_statuses"
-                   default="{goal_statuses}"/>
-    </Action>
     <Action ID="HoldPosition">
       <input_port name="target"
                   default="{filtered_target}"/>
@@ -258,26 +156,6 @@
       <input_port name="shot_threshold"
                   default="10"/>
     </Condition>
-    <Control ID="Once"
-             editable="true"/>
-    <Action ID="RobotControl">
-      <input_port name="stop_gimbal_scan"
-                  default="True"/>
-      <input_port name="chassis_spin_vel"
-                  default="0.0"/>
-      <input_port name="gimbal_big_yaw_vel"
-                  default="1.0"/>
-      <input_port name="gimbal_big_yaw_angle"
-                  default="0.785"/>
-      <input_port name="follow_gimbal_big"
-                  default="true"/>
-      <input_port name="chassis_vel_multi"
-                  default="1.0"/>
-      <input_port name="stop_chassis_vel_multi"
-                  default="True"/>
-      <input_port name="track_status"
-                  default="false"/>
-    </Action>
     <Action ID="SendGoal">
       <input_port name="goal_pose"
                   default="{best_goal}"/>
@@ -293,13 +171,6 @@
                   default="/detector/armors"/>
       <output_port name="armors"
                    default="{armors}"/>
-    </Action>
-    <Action ID="SubRobotStatus"
-            editable="true">
-      <input_port name="topic_name"
-                  default="robot_status"/>
-      <output_port name="robot_status"
-                   default="{robot_status}"/>
     </Action>
   </TreeNodesModel>
 
