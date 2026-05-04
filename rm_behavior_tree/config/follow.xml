@@ -27,10 +27,7 @@
         <ReactiveSequence name="AttackEnemy">
           <CheckHysteresisState state="{hysteresis_state}"
                                 expected_state="HIGH"/>
-          <IsStatusOK message="{robot_status}"
-                      hp_threshold="150"
-                      heat_threshold="300"
-                      shot_threshold="10"/>
+          <GetCurrentLocation current_location="{robot_pose}"/>
           <ArmorToGoal target_message="{filtered_target}"
                        robot_pose="{robot_pose}"
                        offset_distance="2.0"
@@ -134,6 +131,11 @@
       <output_port name="filtered_position"
                    default="{filtered_position}"/>
     </Action>
+    <Action ID="GetCurrentLocation"
+            editable="true">
+      <output_port name="current_location"
+                   default="{current_location}"/>
+    </Action>
     <Action ID="HoldPosition">
       <input_port name="target"
                   default="{filtered_target}"/>
@@ -146,16 +148,6 @@
       <output_port name="is_holding"
                    default="{is_holding}"/>
     </Action>
-    <Condition ID="IsStatusOK">
-      <input_port name="message"
-                  default="{robot_status}"/>
-      <input_port name="hp_threshold"
-                  default="150"/>
-      <input_port name="heat_threshold"
-                  default="300"/>
-      <input_port name="shot_threshold"
-                  default="10"/>
-    </Condition>
     <Action ID="SendGoal">
       <input_port name="goal_pose"
                   default="{best_goal}"/>

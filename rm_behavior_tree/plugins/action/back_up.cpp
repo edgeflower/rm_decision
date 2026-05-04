@@ -12,7 +12,7 @@ BackUpAction::BackUpAction(const std::string & name, const BT::NodeConfig & conf
 : BT::StatefulActionNode(name, config), Node("back_up_node")
 {
   // 创建 cmd_vel 发布者
-  cmd_vel_pub_ = this->create_publisher<geometry_msgs::msg::Twist>("/cmd_vel", 10);
+  cmd_vel_pub_ = this->create_publisher<geometry_msgs::msg::Twist>("/cmd_vel_chassis", 10);
 
   // TF 设置
   tf_buffer_ = std::make_shared<tf2_ros::Buffer>(this->get_clock());

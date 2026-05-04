@@ -161,7 +161,7 @@ bool ChaseGoalAction::sendGoal(const geometry_msgs::msg::PoseStamped &goal)
 
     auto goal_msg = NavigateToPose::Goal();
     goal_msg.pose = goal;
-    goal_msg.pose.header.frame_id = "map";
+    goal_msg.pose.header.frame_id = goal.header.frame_id; // gimbal_yaw   已在armor_to_goal 中赋值
     goal_msg.pose.header.stamp = node_->now();
 
     auto options = rclcpp_action::Client<NavigateToPose>::SendGoalOptions();
