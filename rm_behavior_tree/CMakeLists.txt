@@ -118,6 +118,15 @@ ament_auto_add_library(sub_robot_status SHARED
   plugins/action/sub_robot_status.cpp)
 add_target_dependencies(sub_robot_status)
 
+ament_auto_add_library(sub_robot_area_status SHARED
+  plugins/action/sub_robot_area_status.cpp)
+add_target_dependencies(sub_robot_area_status)
+
+# Sub Sentry Decision (Utility AI 决策消息订阅)
+ament_auto_add_library(sub_sentry_decision SHARED
+  plugins/action/sub_sentry_decision.cpp)
+add_target_dependencies(sub_sentry_decision)
+
 ament_auto_add_library(sub_robot_posture SHARED
   plugins/action/sub_robot_posture.cpp)
 add_target_dependencies(sub_robot_posture)
@@ -197,6 +206,11 @@ ament_auto_add_library(sub_cmd_vel SHARED
   plugins/action/sub_cmd_vel.cpp)
 add_target_dependencies(sub_cmd_vel)
 
+# SendCmdVel Action Node
+ament_auto_add_library(send_cmd_vel SHARED
+  plugins/action/send_cmd_vel.cpp)
+add_target_dependencies(send_cmd_vel)
+
 # Clear Costmap Action Node
 ament_auto_add_library(clear_costmap SHARED
   plugins/action/clear_costmap.cpp)
@@ -260,6 +274,10 @@ ament_auto_add_library(is_status_ok SHARED
   plugins/condition/is_status_ok.cpp)
 add_target_dependencies(is_status_ok)
 
+ament_auto_add_library(is_robot_in_area SHARED
+  plugins/condition/is_robot_in_area.cpp)
+add_target_dependencies(is_robot_in_area)
+
 ament_auto_add_library(is_detect_enenmy SHARED
  plugins/condition/is_detect_enenmy.cpp)
 add_target_dependencies(is_detect_enenmy)
@@ -291,6 +309,16 @@ add_target_dependencies(is_hp_ok)
 ament_auto_add_library(is_stuck SHARED
   plugins/condition/is_stuck.cpp)
 add_target_dependencies(is_stuck)
+
+# Check Blackboard Condition Node
+ament_auto_add_library(check_blackboard SHARED
+  plugins/condition/check_blackboard.cpp)
+add_target_dependencies(check_blackboard)
+
+# Check Decision Condition Node (Utility AI 模式匹配)
+ament_auto_add_library(check_decision SHARED
+  plugins/condition/check_decision.cpp)
+add_target_dependencies(check_decision)
 
 # control
 ament_auto_add_library(decision_switch SHARED

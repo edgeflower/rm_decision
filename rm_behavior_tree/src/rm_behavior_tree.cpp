@@ -79,6 +79,7 @@ int main(int argc, char ** argv)
         "get_current_location",
         "move_around",
         "back_up",
+        "send_cmd_vel",
         "print_message",
         "bag_recorder",
     };

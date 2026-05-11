@@ -137,6 +137,8 @@ private:
             "sub_all_robot_location",
             "sub_robot_posture",
             "sub_all_enemy_location",
+            "sub_robot_area_status",
+            "sub_sentry_decision",
         };
 
         const std::vector<std::string> bt_plugins_libs = {
@@ -149,8 +151,10 @@ private:
             "is_friend_ok",
             "is_outpost_ok",
             "is_hp_ok",
+            "is_robot_in_area",
             "get_current_location",
             "move_around",
+            "back_up",
             "print_message",
             "enemy_position_filter",
             "armor_to_goal",
@@ -161,7 +165,10 @@ private:
             "wait",
             "is_goal_reached",
             "set_posture_xin",
-            "bag_recorder"
+            "bag_recorder",
+            "check_blackboard",
+            "check_decision",
+            "send_cmd_vel",
             // Note: goal_manager, should_reset_observation, get_robot_location removed
             // They will be registered using RegisterRosNode below
         };

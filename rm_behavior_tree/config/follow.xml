@@ -23,11 +23,11 @@
                               current_confidence="{current_confidence}"
                               hysteresis_state="{hysteresis_state}"/>
       </ReactiveSequence>
+      <GetCurrentLocation current_location="{robot_pose}"/>
       <ReactiveFallback name="BehaviorSelector">
         <ReactiveSequence name="AttackEnemy">
           <CheckHysteresisState state="{hysteresis_state}"
                                 expected_state="HIGH"/>
-          <GetCurrentLocation current_location="{robot_pose}"/>
           <ArmorToGoal target_message="{filtered_target}"
                        robot_pose="{robot_pose}"
                        offset_distance="2.0"
@@ -51,6 +51,7 @@
                         is_holding="{is_holding}"/>
           <SendGoal goal_pose="{hold_goal}"
                     action_name="/navigate_to_pose"
+                    min_goal_distance="0.5"
                     current_goal_id="-2"
                     reached_goal_id="{hold_reached_goal_id}"/>
         </ReactiveSequence>
@@ -153,12 +154,15 @@
                   default="{best_goal}"/>
       <input_port name="action_name"
                   default="/navigate_to_pose"/>
+      <input_port name="min_goal_distance"
+                  default="0.5"/>
       <input_port name="current_goal_id"
                   default="{goal_id}"/>
       <output_port name="reached_goal_id"
                    default="{reached_goal_id}"/>
     </Action>
-    <Action ID="SubArmors">
+    <Action ID="SubArmors"
+            editable="true">
       <input_port name="topic_name"
                   default="/detector/armors"/>
       <output_port name="armors"
