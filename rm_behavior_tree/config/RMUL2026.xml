@@ -3,8 +3,8 @@
       main_tree_to_execute="BehaviorTree">
   <BehaviorTree ID="BehaviorTree">
     <ReactiveSequence>
-      <SubAreaStatus topic_name="/robot_area_status"
-                     robot_area_status="{robot_area_status}"/>
+      <SubRobotAreaStatus topic_name="/robot_area_status"
+                          robot_area_status="{robot_area_status}"/>
       <SubRobotStatus topic_name="/robot_status"
                       robot_status="{robot_status}"/>
       <SubGameStatus topic_name="/game_status"
@@ -73,14 +73,12 @@
         <Script code="status_bad := true"/>
         <Script code="status_bad := false"/>
       </IfThenElse>
-      <IfThenElse>
-        <ScriptCondition code="central_route_active == true &amp;&amp; status_bad == true"/>
-        <Script code="central_route_bad := true"/>
-        <Script code="central_route_bad := false"/>
-      </IfThenElse>
       <ReactiveFallback name="ModeSelector">
         <ReactiveSequence name="BumpyRoadProtection">
-          <ScriptCondition code="in_bumpy_area == true || central_route_bad == true"/>
+          <ScriptCondition code="in_bumpy_area == true &amp;&amp; central_route_bad := true"/>
+          <IsYawInRange robot_pose="{robot_pose}"
+                        min_yaw_deg="-180.0"
+                        max_yaw_deg="180.0"/>
           <RobotControl stop_gimbal_scan="True"
                         chassis_spin_vel="0.0"
                         gimbal_big_yaw_vel="0.0"
@@ -102,8 +100,6 @@
           <WaitUntilReached goal_pose="{out_robot_target_pose}"
                             tolerance="0.5"/>
           <Wait duration="5"/>
-          <Script code="mission_state := &apos;SAFE_ON_CENTRAL&apos;"/>
-          <Script code="central_route_active := false"/>
         </ReactiveSequence>
         <ReactiveSequence>
           <Inverter>
@@ -244,8 +240,6 @@
               </KeepRunningUntilFailure>
             </Sequence>
             <Sequence>
-              <Script code="mission_state := GOING_TO_CENTRAL"/>
-              <Script code="central_route_active := true"/>
               <RobotControl stop_gimbal_scan="True"
                             chassis_spin_vel="0.0"
                             gimbal_big_yaw_vel="0.0"
@@ -392,8 +386,8 @@
       <input_port name="message"
                   default="{robot_status}"/>
     </Action>
-    <Action ID="IsGameTime"
-            editable="true">
+    <Condition ID="IsGameTime"
+               editable="true">
       <input_port name="message"
                   default="{game_status}"/>
       <input_port name="game_progress"
@@ -402,16 +396,16 @@
                   default="0"/>
       <input_port name="higher_remain_time"
                   default="300"/>
-    </Action>
-    <Action ID="IsRobotInArea"
-            editable="true">
+    </Condition>
+    <Condition ID="IsRobotInArea"
+               editable="true">
       <input_port name="robot_area_status"
                   default="{robot_area_status}"/>
       <input_port name="target_area_name"/>
       <input_port name="target_area_type"/>
-    </Action>
-    <Action ID="IsStatusOK"
-            editable="true">
+    </Condition>
+    <Condition ID="IsStatusOK"
+               editable="true">
       <input_port name="message"
                   default="{robot_status}"/>
       <input_port name="hp_threshold"
@@ -420,7 +414,15 @@
                   default="350"/>
       <input_port name="shot_threshold"
                   default="0"/>
-    </Action>
+    </Condition>
+    <Condition ID="IsYawInRange">
+      <input_port name="robot_pose"
+                  default="{robot_pose}"/>
+      <input_port name="min_yaw_deg"
+                  default="-180.0"/>
+      <input_port name="max_yaw_deg"
+                  default="180.0"/>
+    </Condition>
     <Action ID="LoadWaypoints">
       <input_port name="waypoint_file"/>
       <input_port name="frame_id"
@@ -501,13 +503,6 @@
       <input_port name="override"
                   default="False"/>
     </Action>
-    <Action ID="SubAreaStatus"
-            editable="true">
-      <input_port name="topic_name"
-                  default="/area_status"/>
-      <output_port name="robot_area_status"
-                   default="{robot_area_status}"/>
-    </Action>
     <Action ID="SubArmors"
             editable="true">
       <input_port name="topic_name"
@@ -521,6 +516,13 @@
                   default="game_status"/>
       <output_port name="game_status"
                    default="{game_status}"/>
+    </Action>
+    <Action ID="SubRobotAreaStatus"
+            editable="true">
+      <input_port name="topic_name"
+                  default="/area_status"/>
+      <output_port name="robot_area_status"
+                   default="{robot_area_status}"/>
     </Action>
     <Action ID="SubRobotStatus"
             editable="true">

@@ -24,8 +24,14 @@ set(PACKAGE_INCLUDE_DEPENDS
   rclcpp
   rclcpp_components
   std_msgs
+  geometry_msgs
   nav_msgs
+  nav2_msgs
+  tf2
+  tf2_ros
+  tf2_geometry_msgs
   behaviortree_cpp
+  behaviortree_cpp_v3
   behaviortree_ros2
   )
 
@@ -34,7 +40,7 @@ set(PACKAGE_INCLUDE_DEPENDS
 # 定义宏函数 add_target_dependencies
 function(add_target_dependencies target)
   target_include_directories(${target} PRIVATE $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/include>)
-  ament_target_dependencies(${target} ${package_INCLUDE_DEPENDS})
+  ament_target_dependencies(${target} ${PACKAGE_INCLUDE_DEPENDS})
   target_compile_definitions(${target} PRIVATE BT_PLUGIN_EXPORT)
 endfunction()
 
@@ -201,6 +207,11 @@ ament_auto_add_library(cancel_navigation SHARED
   plugins/action/cancel_navigation.cpp)
 add_target_dependencies(cancel_navigation)
 
+# Cancel Nav2 Goal Action Node
+ament_auto_add_library(cancel_nav2_goal SHARED
+  plugins/action/cancel_nav2_goal.cpp)
+add_target_dependencies(cancel_nav2_goal)
+
 # Sub CmdVel Action Node
 ament_auto_add_library(sub_cmd_vel SHARED
   plugins/action/sub_cmd_vel.cpp)
@@ -309,6 +320,16 @@ add_target_dependencies(is_hp_ok)
 ament_auto_add_library(is_stuck SHARED
   plugins/condition/is_stuck.cpp)
 add_target_dependencies(is_stuck)
+
+# Is Nav2 Goal Near Condition Node
+ament_auto_add_library(is_nav2_goal_near SHARED
+  plugins/condition/is_nav2_goal_near.cpp)
+add_target_dependencies(is_nav2_goal_near)
+
+# Is Yaw In Range Condition Node
+ament_auto_add_library(is_yaw_in_range SHARED
+  plugins/condition/is_yaw_in_range.cpp)
+add_target_dependencies(is_yaw_in_range)
 
 # Check Blackboard Condition Node
 ament_auto_add_library(check_blackboard SHARED

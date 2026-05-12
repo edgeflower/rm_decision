@@ -53,6 +53,10 @@ int main(int argc, char ** argv)
     // 设置默认topic名称为lidar_odometry，与XML配置保持一致
     params_get_location.default_port_value = "/lidar_odometry";
 
+    BT::RosNodeParams params_cancel_nav2_goal;
+    params_cancel_nav2_goal.nh = node;
+    params_cancel_nav2_goal.default_port_value = "/navigate_to_pose";
+
     //-------------------插件库名称列表----------------------------
     // 列出所有需要注册的插件名称，每个插件均封装成一个共享库文件
 
@@ -76,6 +80,7 @@ int main(int argc, char ** argv)
         "is_attacked",
         "is_friend_ok",
         "is_outpost_ok",
+        "is_yaw_in_range",
         "get_current_location",
         "move_around",
         "back_up",
@@ -106,6 +111,8 @@ int main(int argc, char ** argv)
 
     RegisterRosNode(factory, BT::SharedLibrary::getOSName("robot_control"), params_robot_control);
 
+    RegisterRosNode(factory, BT::SharedLibrary::getOSName("cancel_nav2_goal"), params_cancel_nav2_goal);
+
     // 导航插件：需要独立的 RosNodeParams，各自连接不同的 action server
     BT::RosNodeParams params_nav;
     params_nav.nh = std::make_shared<rclcpp::Node>("nav_action");
@@ -119,6 +126,10 @@ int main(int argc, char ** argv)
     // SendNav2Goal：Nav2 单点导航 action
     params_nav.default_port_value = "/navigate_to_pose";
     RegisterRosNode(factory, BT::SharedLibrary::getOSName("send_nav2_goal"), params_nav);
+
+    // IsNav2GoalNear：订阅 Nav2 feedback 的剩余距离
+    params_nav.default_port_value = "/navigate_to_pose/_action/feedback";
+    RegisterRosNode(factory, BT::SharedLibrary::getOSName("is_nav2_goal_near"), params_nav);
 
     // FollowWaypoints：Nav2 多点逐站到达 action
     params_nav.default_port_value = "/follow_waypoints";
